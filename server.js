@@ -217,7 +217,7 @@ app.put('/api/book-lists/:id', async (req, res) => {
 
         const updateQuery = `
             UPDATE book_lists
-            SET name = $1, updated_at = now()
+            SET name = $1
             WHERE book_list_id = $2
             RETURNING book_list_id, name, is_standard;
         `;
