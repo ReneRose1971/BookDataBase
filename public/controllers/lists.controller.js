@@ -31,9 +31,9 @@ export function unmount(rootElement) {
     rootElement.removeEventListener('click', handleTableClick);
 
     // Unbind click events for buttons
-    const createButton = rootElement.querySelector('.button-group .nav-button:nth-child(1)');
-    const editButton = rootElement.querySelector('.button-group .nav-button:nth-child(2)');
-    const deleteButton = rootElement.querySelector('.button-group .nav-button:nth-child(3)');
+    const createButton = rootElement.querySelector('.button-group .func-button:nth-child(1)');
+    const editButton = rootElement.querySelector('.button-group .func-button:nth-child(2)');
+    const deleteButton = rootElement.querySelector('.button-group .func-button:nth-child(3)');
 
     if (createButton) {
         createButton.removeEventListener('click', openCreateListDialog);
@@ -280,7 +280,7 @@ async function deleteSelectedList() {
 
         selectedListId = null;
         const lists = await fetchLists();
-        renderListsTable(document.querySelector('[data-view="lists"]'), lists);
+        renderListsTable(rootElement, lists);
     } catch (error) {
         console.error('Error deleting list:', error);
     }
