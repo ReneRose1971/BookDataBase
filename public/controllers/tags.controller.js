@@ -52,21 +52,50 @@ function handleTableClick(event) {
 }
 
 async function openCreateTagDialog() {
-    const name = prompt('Name des neuen Tags:');
-    if (!name) return;
     try {
-        const res = await fetch('/api/tags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (res.ok) {
-            const tags = await fetchTags();
-            renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
-        } else {
-            const err = await res.json();
-            alert(err.error);
-        }
+        const response = await fetch('/views/tag-create.dialog.view.html');
+        const dialogHTML = await response.text();
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = dialogHTML;
+        const dialog = tempDiv.querySelector('dialog');
+        document.body.appendChild(dialog);
+
+        const confirmBtn = dialog.querySelector('button[value="confirm"]');
+        const cancelBtn = dialog.querySelector('button[value="cancel"]');
+        const nameInput = dialog.querySelector('#tagName');
+
+        dialog.showModal();
+
+        cancelBtn.onclick = (e) => {
+            e.preventDefault();
+            dialog.close();
+            dialog.remove();
+        };
+
+        confirmBtn.onclick = async (e) => {
+            e.preventDefault();
+            const name = nameInput.value.trim();
+            if (!name) return alert('Name ist erforderlich.');
+
+            try {
+                const res = await fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (res.ok) {
+                    const tags = await fetchTags();
+                    renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
+                    dialog.close();
+                    dialog.remove();
+                } else {
+                    const err = await res.json();
+                    alert(err.error);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
     } catch (e) {
         console.error(e);
     }
@@ -74,21 +103,57 @@ async function openCreateTagDialog() {
 
 async function openEditTagDialog() {
     if (!selectedTagId) return alert('Bitte Tag auswählen.');
-    const name = prompt('Neuer Name für das Tag:');
-    if (!name) return;
+    
     try {
-        const res = await fetch(`/api/tags/${selectedTagId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (res.ok) {
-            const tags = await fetchTags();
-            renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
-        } else {
-            const err = await res.json();
-            alert(err.error);
-        }
+        const tagRes = await fetch('/api/tags');
+        const tags = await tagRes.json();
+        const tag = tags.find(t => t.tag_id === selectedTagId);
+        if (!tag) return;
+
+        const response = await fetch('/views/tag-edit.dialog.view.html');
+        const dialogHTML = await response.text();
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = dialogHTML;
+        const dialog = tempDiv.querySelector('dialog');
+        document.body.appendChild(dialog);
+
+        const confirmBtn = dialog.querySelector('button[value="confirm"]');
+        const cancelBtn = dialog.querySelector('button[value="cancel"]');
+        const nameInput = dialog.querySelector('#tagName');
+        nameInput.value = tag.name;
+
+        dialog.showModal();
+
+        cancelBtn.onclick = (e) => {
+            e.preventDefault();
+            dialog.close();
+            dialog.remove();
+        };
+
+        confirmBtn.onclick = async (e) => {
+            e.preventDefault();
+            const name = nameInput.value.trim();
+            if (!name) return alert('Name ist erforderlich.');
+
+            try {
+                const res = await fetch(`/api/tags/${selectedTagId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (res.ok) {
+                    const tags = await fetchTags();
+                    renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
+                    dialog.close();
+                    dialog.remove();
+                } else {
+                    const err = await res.json();
+                    alert(err.error);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
     } catch (e) {
         console.error(e);
     }
