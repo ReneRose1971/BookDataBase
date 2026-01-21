@@ -9,9 +9,9 @@ export async function mount(rootElement) {
     rootElement.addEventListener('click', handleTableClick);
 
     // Bind click events for buttons
-    const createButton = rootElement.querySelector('.button-group .nav-button:nth-child(1)');
-    const editButton = rootElement.querySelector('.button-group .nav-button:nth-child(2)');
-    const deleteButton = rootElement.querySelector('.button-group .nav-button:nth-child(3)');
+    const createButton = rootElement.querySelector('.button-group .func-button:nth-child(1)');
+    const editButton = rootElement.querySelector('.button-group .func-button:nth-child(2)');
+    const deleteButton = rootElement.querySelector('.button-group .func-button:nth-child(3)');
 
     if (createButton) {
         createButton.addEventListener('click', openCreateListDialog);
@@ -145,14 +145,16 @@ async function openCreateListDialog() {
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to create list');
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create list');
                 }
 
                 const lists = await fetchLists();
-                renderListsTable(document.querySelector('[data-view="lists"]'), lists);
+                renderListsTable(rootElement, lists);
                 dialog.close('confirm');
                 dialog.remove();
             } catch (error) {
+                alert(error.message);
                 console.error('Error creating list:', error);
             }
         });
@@ -197,6 +199,11 @@ async function openEditListDialog() {
         const confirmButton = dialog.querySelector('button[value="confirm"]');
         const cancelButton = dialog.querySelector('button[value="cancel"]');
 
+        const dialogElement = dialog.querySelector('dialog');
+        if (dialogElement) {
+            dialogElement.showModal();
+        }
+
         confirmButton.addEventListener('click', async () => {
             const name = nameInput.value.trim();
 
@@ -213,12 +220,16 @@ async function openEditListDialog() {
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to update list');
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to update list');
                 }
 
-                await fetchLists().then(lists => renderListsTable(rootElement, lists));
+                const lists = await fetchLists();
+                renderListsTable(rootElement, lists);
+                dialog.querySelector('dialog').close();
                 dialog.remove();
             } catch (error) {
+                alert(error.message);
                 console.error('Error updating list:', error);
             }
         });
