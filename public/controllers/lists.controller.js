@@ -9,20 +9,32 @@ export async function mount(rootElement) {
     rootElement.addEventListener('click', handleTableClick);
 
     // Bind click events for buttons
-    const createButton = rootElement.querySelector('.button-group .func-button:nth-child(1)');
-    const editButton = rootElement.querySelector('.button-group .func-button:nth-child(2)');
-    const deleteButton = rootElement.querySelector('.button-group .func-button:nth-child(3)');
+    const createButton = rootElement.querySelector('.button-group button:nth-child(1)');
+    const editButton = rootElement.querySelector('.button-group button:nth-child(2)');
+    const deleteButton = rootElement.querySelector('.button-group button:nth-child(3)');
 
     if (createButton) {
-        createButton.addEventListener('click', openCreateListDialog);
+        createButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openCreateListDialog();
+        });
     }
 
     if (editButton) {
-        editButton.addEventListener('click', openEditListDialog);
+        editButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openEditListDialog(rootElement);
+        });
     }
 
     if (deleteButton) {
-        deleteButton.addEventListener('click', deleteSelectedList);
+        deleteButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            deleteSelectedList(rootElement);
+        });
     }
 }
 
@@ -30,27 +42,9 @@ export function unmount(rootElement) {
     // Clean up events and other resources
     rootElement.removeEventListener('click', handleTableClick);
 
-    // Unbind click events for buttons
-    const createButton = rootElement.querySelector('.button-group .func-button:nth-child(1)');
-    const editButton = rootElement.querySelector('.button-group .func-button:nth-child(2)');
-    const deleteButton = rootElement.querySelector('.button-group .func-button:nth-child(3)');
-
-    if (createButton) {
-        createButton.removeEventListener('click', openCreateListDialog);
-    }
-
-    if (editButton) {
-        editButton.removeEventListener('click', openEditListDialog);
-    }
-
-    if (deleteButton) {
-        deleteButton.removeEventListener('click', deleteSelectedList);
-    }
-
-    const dialog = rootElement.querySelector('dialog');
-    if (dialog) {
-        dialog.remove();
-    }
+    // Dialog cleanup
+    const dialogs = document.querySelectorAll('body > dialog');
+    dialogs.forEach(d => d.remove());
 }
 
 async function fetchLists() {
@@ -122,50 +116,57 @@ async function openCreateListDialog() {
 
         const confirmButton = dialog.querySelector('button[value="confirm"]');
         const cancelButton = dialog.querySelector('button[value="cancel"]');
-
-        cancelButton.addEventListener('click', () => {
-            dialog.close('cancel');
-            dialog.remove();
-        });
-
-        confirmButton.addEventListener('click', async () => {
-            const nameInput = dialog.querySelector('#name');
-            const name = nameInput.value.trim();
-
-            if (!name) {
-                alert('Name ist erforderlich.');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/book-lists', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to create list');
-                }
-
-                const lists = await fetchLists();
-                renderListsTable(rootElement, lists);
-                dialog.close('confirm');
-                dialog.remove();
-            } catch (error) {
-                alert(error.message);
-                console.error('Error creating list:', error);
-            }
-        });
+        const nameInput = dialog.querySelector('#name');
 
         dialog.showModal();
+
+        if (cancelButton) {
+            cancelButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                dialog.close();
+                dialog.remove();
+            });
+        }
+
+        if (confirmButton) {
+            confirmButton.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const name = nameInput.value.trim();
+
+                if (!name) {
+                    alert('Name ist erforderlich.');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/book-lists', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Failed to create list');
+                    }
+
+                    const lists = await fetchLists();
+                    const rootElement = document.querySelector('.view-wrapper-lists');
+                    renderListsTable(rootElement, lists);
+                    dialog.close();
+                    dialog.remove();
+                } catch (error) {
+                    alert(error.message);
+                    console.error('Error creating list:', error);
+                }
+            });
+        }
     } catch (error) {
         console.error('Error opening create list dialog:', error);
     }
 }
 
-async function openEditListDialog() {
+async function openEditListDialog(rootElement) {
     if (!selectedListId) {
         alert('Keine Liste ausgewählt.');
         return;
@@ -189,60 +190,64 @@ async function openEditListDialog() {
         }
         const dialogHTML = await dialogResponse.text();
 
-        const dialog = document.createElement('div');
-        dialog.innerHTML = dialogHTML;
-        document.body.appendChild(dialog);
+        const dialogContainer = document.createElement('div');
+        dialogContainer.innerHTML = dialogHTML;
+        const dialogElement = dialogContainer.querySelector('dialog');
+        document.body.appendChild(dialogElement);
 
-        const nameInput = dialog.querySelector('#name');
+        const confirmButton = dialogElement.querySelector('button[value="confirm"]');
+        const cancelButton = dialogElement.querySelector('button[value="cancel"]');
+        const nameInput = dialogElement.querySelector('#name');
         nameInput.value = list.item.name;
 
-        const confirmButton = dialog.querySelector('button[value="confirm"]');
-        const cancelButton = dialog.querySelector('button[value="cancel"]');
+        dialogElement.showModal();
 
-        const dialogElement = dialog.querySelector('dialog');
-        if (dialogElement) {
-            dialogElement.showModal();
+        if (cancelButton) {
+            cancelButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                dialogElement.close();
+                dialogElement.remove();
+            });
         }
 
-        confirmButton.addEventListener('click', async () => {
-            const name = nameInput.value.trim();
+        if (confirmButton) {
+            confirmButton.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const name = nameInput.value.trim();
 
-            if (!name) {
-                alert('Name ist erforderlich.');
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/book-lists/${selectedListId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to update list');
+                if (!name) {
+                    alert('Name ist erforderlich.');
+                    return;
                 }
 
-                const lists = await fetchLists();
-                renderListsTable(rootElement, lists);
-                dialog.querySelector('dialog').close();
-                dialog.remove();
-            } catch (error) {
-                alert(error.message);
-                console.error('Error updating list:', error);
-            }
-        });
+                try {
+                    const response = await fetch(`/api/book-lists/${selectedListId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    });
 
-        cancelButton.addEventListener('click', () => {
-            dialog.remove();
-        });
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Failed to update list');
+                    }
+
+                    const lists = await fetchLists();
+                    renderListsTable(rootElement, lists);
+                    dialogElement.close();
+                    dialogElement.remove();
+                } catch (error) {
+                    alert(error.message);
+                    console.error('Error updating list:', error);
+                }
+            });
+        }
     } catch (error) {
         console.error('Error opening edit list dialog:', error);
     }
 }
 
-async function deleteSelectedList() {
+async function deleteSelectedList(rootElement) {
     if (!selectedListId) {
         alert('Keine Liste ausgewählt.');
         return;
