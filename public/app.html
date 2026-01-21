@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App</title>
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/navigation.css">
+    <link rel="stylesheet" href="css/dataviews.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+    <div class="page-wrapper">
+        <header>Header Content</header>
+        <div class="content-wrapper">
+            <nav class="navigation">
+                <section class="nav-group">
+                    <div class="section-label section-label-stammdaten">Stammdaten</div>
+                    <button class="nav-button" data-view="books">Bücher</button>
+                    <button class="nav-button" data-view="authors">Autoren</button>
+                </section>
+                <section class="nav-group">
+                    <div class="section-label section-label-ordnungsdaten">Ordnungsdaten</div>
+                    <button class="nav-button" data-view="lists">Listen</button>
+                    <button class="nav-button" data-view="tags">Tags</button>
+                </section>
+                <section class="nav-group">
+                    <button class="nav-button nav-button-startseite" onclick="location.href='/app.html'">Startseite</button>
+                </section>
+            </nav>
+            <main id="content">
+                  <div class="section-label section-label-headline">Bücher Datenbank</div>
+            </main>
+        </div>
+        <footer>Footer Content</footer>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+:root {
+    --color-light-gray: #d3d3d3;
+    --color-dark-blue: #2c2c6c;
+    --color-yellow: #ffc107;
+    --color-beige: #fdf5e6;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #fff;
+}
+
+/* Added missing styles from app.css */
+main.container {
+    max-width: 520px;
+}
+
+form {
+    max-width: 520px;
+    margin: 0 auto;
+}

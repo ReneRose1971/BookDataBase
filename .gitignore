@@ -1,0 +1,68 @@
+# =========================
+# Node.js
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Build / Output
+# =========================
+dist/
+build/
+coverage/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Runtime data
+# =========================
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# =========================
+# OS specific
+# =========================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# =========================
+# VS Code
+# =========================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# =========================
+# Temporary / Editor files
+# =========================
+*.swp
+*.swo
+*~
+.tmp
+.temp
+
+# =========================
+# PostgreSQL (lokale Artefakte, falls vorhanden)
+# =========================
+*.sql
+*.dump
+*.bak

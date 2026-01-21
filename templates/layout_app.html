@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Layout</title>
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+    <div class="page-wrapper">
+        <header>Header Content</header>
+        <div class="content-wrapper">
+            <nav class="navigation">
+                <section class="nav-group">
+                    <div class="section-label section-label-stammdaten">Stammdaten</div>
+                    <button class="nav-button">Bücher</button>
+                    <button class="nav-button">Autoren</button>
+                </section>
+                <section class="nav-group">
+                    <div class="section-label section-label-ordnungsdaten">Ordnungsdaten</div>
+                    <button class="nav-button">Listen</button>
+                    <button class="nav-button">Tags</button>
+                </section>
+                <section class="nav-group">
+                    <button class="nav-button nav-button-startseite" onclick="location.href='/app.html'">Startseite</button>
+                </section>
+            </nav>
+            <main id="">
+                <div class="section-label section-label-headline">Bücher Datenbank</div>
+                <div id="app">
+                    <div data-view="" id="content">
+                        <!-- CONTENT START -->
+                        <!-- CONTENT END -->
+                    </div>
+                </div>
+            </main>
+        </div>
+        <footer>Footer Content</footer>
+    </div>
+</body>
+</html>
