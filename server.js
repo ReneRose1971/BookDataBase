@@ -428,6 +428,82 @@ console.log("dotenv parsed keys:", result.parsed ? Object.keys(result.parsed) : 
 console.log("process.env has PGUSER:", Object.prototype.hasOwnProperty.call(process.env, "PGUSER"));
 console.log("process.env has DB_USER:", Object.prototype.hasOwnProperty.call(process.env, "DB_USER"));
 
+// Tags API
+app.get('/api/tags', async (req, res) => {
+    try {
+        const query = `
+            SELECT t.tag_id, t.name, COUNT(bt.book_id)::int as book_count
+            FROM tags t
+            LEFT JOIN book_tags bt ON t.tag_id = bt.tag_id
+            GROUP BY t.tag_id, t.name
+            ORDER BY t.name ASC;
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching tags:', error);
+        res.status(500).json({ error: 'Fehler beim Laden der Tags.' });
+    }
+});
+
+app.post('/api/tags', async (req, res) => {
+    const { name } = req.body;
+    if (!name || name.trim().length === 0) {
+        return res.status(400).json({ error: 'Name ist erforderlich.' });
+    }
+    try {
+        const query = 'INSERT INTO tags (name) VALUES ($1) RETURNING *';
+        const result = await pool.query(query, [name.trim()]);
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        if (error.code === '23505') {
+            res.status(409).json({ error: 'Tag existiert bereits.' });
+        } else {
+            console.error('Error creating tag:', error);
+            res.status(500).json({ error: 'Fehler beim Erstellen des Tags.' });
+        }
+    }
+});
+
+app.put('/api/tags/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name } = req.body;
+    if (!name || name.trim().length === 0) {
+        return res.status(400).json({ error: 'Name ist erforderlich.' });
+    }
+    try {
+        const query = 'UPDATE tags SET name = $1 WHERE tag_id = $2 RETURNING *';
+        const result = await pool.query(query, [name.trim(), id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Tag nicht gefunden.' });
+        }
+        res.json(result.rows[0]);
+    } catch (error) {
+        if (error.code === '23505') {
+            res.status(409).json({ error: 'Tag-Name wird bereits verwendet.' });
+        } else {
+            console.error('Error updating tag:', error);
+            res.status(500).json({ error: 'Fehler beim Aktualisieren des Tags.' });
+        }
+    }
+});
+
+app.delete('/api/tags/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // First delete associations
+        await pool.query('DELETE FROM book_tags WHERE tag_id = $1', [id]);
+        const result = await pool.query('DELETE FROM tags WHERE tag_id = $1 RETURNING *', [id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Tag nicht gefunden.' });
+        }
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting tag:', error);
+        res.status(500).json({ error: 'Fehler beim Löschen des Tags.' });
+    }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
