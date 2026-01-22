@@ -601,6 +601,81 @@ app.post('/api/books', async (req, res) => {
     }
 });
 
+app.get('/api/books/:id', async (req, res) => {
+    const bookId = parseInt(req.params.id, 10);
+    if (isNaN(bookId)) return res.status(400).json({ error: 'Ungültige Buch-ID.' });
+
+    try {
+        const bookQuery = 'SELECT book_id, title FROM books WHERE book_id = $1';
+        const authorsQuery = `
+            SELECT a.author_id, a.first_name, a.last_name
+            FROM authors a
+            JOIN book_authors ba ON a.author_id = ba.author_id
+            WHERE ba.book_id = $1
+        `;
+        const listsQuery = `
+            SELECT book_list_id
+            FROM book_book_lists
+            WHERE book_id = $1
+        `;
+
+        const [bookRes, authorsRes, listsRes] = await Promise.all([
+            pool.query(bookQuery, [bookId]),
+            pool.query(authorsQuery, [bookId]),
+            pool.query(listsQuery, [bookId])
+        ]);
+
+        if (bookRes.rowCount === 0) return res.status(404).json({ error: 'Buch nicht gefunden.' });
+
+        const book = bookRes.rows[0];
+        book.authors = authorsRes.rows;
+        book.listIds = listsRes.rows.map(r => r.book_list_id);
+
+        res.json(book);
+    } catch (error) {
+        console.error('Error fetching book details:', error);
+        res.status(500).json({ error: 'Fehler beim Laden der Buchdetails.' });
+    }
+});
+
+app.put('/api/books/:id', async (req, res) => {
+    const bookId = parseInt(req.params.id, 10);
+    const { title, authorIds, listIds } = req.body;
+
+    if (isNaN(bookId) || !title || !authorIds || !Array.isArray(authorIds) || authorIds.length === 0 || !listIds || !Array.isArray(listIds) || listIds.length === 0) {
+        return res.status(400).json({ error: 'Ungültige Daten.' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Update title
+        await client.query('UPDATE books SET title = $1, updated_at = NOW() WHERE book_id = $2', [title.trim(), bookId]);
+
+        // Update authors
+        await client.query('DELETE FROM book_authors WHERE book_id = $1', [bookId]);
+        for (const authorId of authorIds) {
+            await client.query('INSERT INTO book_authors (book_id, author_id) VALUES ($1, $2)', [bookId, authorId]);
+        }
+
+        // Update lists
+        await client.query('DELETE FROM book_book_lists WHERE book_id = $1', [bookId]);
+        for (const listId of listIds) {
+            await client.query('INSERT INTO book_book_lists (book_id, book_list_id) VALUES ($1, $2)', [bookId, listId]);
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error updating book:', error);
+        res.status(500).json({ error: 'Fehler beim Aktualisieren des Buches.' });
+    } finally {
+        client.release();
+    }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });

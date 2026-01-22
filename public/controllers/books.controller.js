@@ -11,10 +11,25 @@ export async function mount(rootElement) {
     const deleteBtn = rootElement.querySelector('.button-group button:nth-child(3)');
 
     if (createBtn) {
-        createBtn.addEventListener('click', (e) => {
+        createBtn.onclick = (e) => {
             e.preventDefault();
-            openCreateBookDialog(rootElement);
-        });
+            openBookDialog(rootElement);
+        };
+    }
+
+    if (editBtn) {
+        editBtn.onclick = (e) => {
+            e.preventDefault();
+            if (!selectedBookId) return alert('Bitte ein Buch auswählen.');
+            openBookDialog(rootElement, selectedBookId);
+        };
+    }
+
+    if (deleteBtn) {
+        deleteBtn.onclick = (e) => {
+            e.preventDefault();
+            deleteSelectedBook(rootElement);
+        };
     }
 }
 
@@ -39,7 +54,7 @@ function renderBooksTable(rootElement, books) {
     const tbody = rootElement.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = books.map(book => `
-        <tr data-book-id="${book.book_id}">
+        <tr data-book-id="${book.book_id}" class="${selectedBookId === book.book_id ? 'selected' : ''}">
             <td>${book.title}</td>
             <td>${book.authors || ''}</td>
         </tr>
@@ -55,7 +70,23 @@ function handleTableClick(event) {
     }
 }
 
-async function openCreateBookDialog(rootElement) {
+async function deleteSelectedBook(rootElement) {
+    if (!selectedBookId) return alert('Bitte ein Buch auswählen.');
+    if (!confirm('Buch wirklich löschen?')) return;
+
+    try {
+        const res = await fetch(`/api/books/${selectedBookId}`, { method: 'DELETE' });
+        if (res.ok) {
+            selectedBookId = null;
+            const books = await fetchBooks();
+            renderBooksTable(rootElement, books);
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function openBookDialog(rootElement, bookId = null) {
     try {
         const response = await fetch('/views/book-create.dialog.view.html');
         const dialogHTML = await response.text();
@@ -63,6 +94,10 @@ async function openCreateBookDialog(rootElement) {
         tempDiv.innerHTML = dialogHTML;
         const dialog = tempDiv.querySelector('dialog');
         document.body.appendChild(dialog);
+
+        if (bookId) {
+            dialog.querySelector('h1').textContent = 'Buch bearbeiten';
+        }
 
         const titleInput = dialog.querySelector('#bookTitle');
         const authorSelect = dialog.querySelector('#authorSelect');
@@ -76,17 +111,18 @@ async function openCreateBookDialog(rootElement) {
         let assignedAuthors = [];
         let selectedInDialogId = null;
 
-        // Load authors for dropdown
-        const authorsRes = await fetch('/api/authors');
-        const authors = await authorsRes.json();
-        authorSelect.innerHTML = authors.map(a => `<option value="${a.author_id}">${a.first_name} ${a.last_name}</option>`).join('');
-
-        // Load book lists
-        const listsRes = await fetch('/api/book_lists');
+        // Load baseline data
+        const [authorsRes, listsRes] = await Promise.all([
+            fetch('/api/authors'),
+            fetch('/api/book_lists')
+        ]);
+        const allAuthors = await authorsRes.json();
         const bookLists = await listsRes.json();
+
+        authorSelect.innerHTML = allAuthors.map(a => `<option value="${a.author_id}">${a.first_name} ${a.last_name}</option>`).join('');
         listsGrid.innerHTML = bookLists.map(list => `
             <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 0;">
-                <input type="checkbox" name="book_list" value="${list.book_list_id}" ${list.name === 'Gelesene Bücher' || list.name === 'Wunschliste' ? '' : ''}>
+                <input type="checkbox" name="book_list" value="${list.book_list_id}">
                 ${list.name}
             </label>
         `).join('');
@@ -113,9 +149,23 @@ async function openCreateBookDialog(rootElement) {
             });
         };
 
+        // If editing, load book data
+        if (bookId) {
+            const bookRes = await fetch(`/api/books/${bookId}`);
+            const bookData = await bookRes.json();
+            titleInput.value = bookData.title;
+            assignedAuthors = bookData.authors;
+            renderDialogAuthors();
+            
+            bookData.listIds.forEach(id => {
+                const cb = dialog.querySelector(`input[name="book_list"][value="${id}"]`);
+                if (cb) cb.checked = true;
+            });
+        }
+
         addAuthorBtn.addEventListener('click', () => {
             const authorId = parseInt(authorSelect.value);
-            const author = authors.find(a => a.author_id === authorId);
+            const author = allAuthors.find(a => a.author_id === authorId);
             if (author && !assignedAuthors.find(a => a.author_id === authorId)) {
                 assignedAuthors.push(author);
                 renderDialogAuthors();
@@ -150,27 +200,29 @@ async function openCreateBookDialog(rootElement) {
             
             // Check for duplicate
             const checkRes = await fetch(`/api/books/check-duplicate?title=${encodeURIComponent(title)}&authorIds=${JSON.stringify(authorIds)}`);
-            const { duplicate } = await checkRes.json();
+            const { duplicate, book_id: existingId } = await checkRes.json();
             
-            if (duplicate) {
+            if (duplicate && (!bookId || existingId !== bookId)) {
                 alert('Ein Buch mit diesem Titel und diesen Autoren existiert bereits.');
                 return;
             }
 
-            // Create book
-            const createRes = await fetch('/api/books', {
-                method: 'POST',
+            const method = bookId ? 'PUT' : 'POST';
+            const url = bookId ? `/api/books/${bookId}` : '/api/books';
+
+            const saveRes = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title, authorIds, listIds: checkedLists })
             });
 
-            if (createRes.ok) {
+            if (saveRes.ok) {
                 const books = await fetchBooks();
                 renderBooksTable(rootElement, books);
                 dialog.close();
                 dialog.remove();
             } else {
-                const err = await createRes.json();
+                const err = await saveRes.json();
                 alert(err.error || 'Fehler beim Speichern.');
             }
         });
@@ -179,9 +231,4 @@ async function openCreateBookDialog(rootElement) {
     } catch (e) {
         console.error(e);
     }
-}
-
-// Remove old helper function as it's now integrated in openCreateBookDialog
-function renderAssignedAuthors(tbody, authors) {
-    // Deprecated
 }
