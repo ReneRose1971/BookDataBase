@@ -25,6 +25,12 @@
     max-width: 100%;
 }
 
+#booklistFilter {
+    background-color: var(--color-light-gray);
+    border: 1px solid #ccc;
+    color: inherit;
+}
+
 .button-group .func-button {
     flex: 1;
     margin: 0;
