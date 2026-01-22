@@ -19,8 +19,18 @@ main#content {
     width: 100%;
 }
 
-header, footer {
-    height: 50px;
-    background-color: var(--color-light-gray);
-    font-size: 0;
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    width: max-content;
+}
+
+.func-button {
+    flex: 1;
+    white-space: nowrap;
+    width: auto;
+    min-width: max-content;
+    padding: 10px 15px; /* Base padding + 5px extra as requested */
+    margin: 0;
 }
