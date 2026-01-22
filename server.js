@@ -512,16 +512,30 @@ app.delete('/api/tags/:id', async (req, res) => {
 });
 
 app.get('/api/books', async (req, res) => {
-    const query = `
+    const listId = req.query.listId;
+    let query = `
         SELECT b.book_id, b.title, STRING_AGG(a.first_name || ' ' || a.last_name, ', ') as authors
         FROM books b
         LEFT JOIN book_authors ba ON b.book_id = ba.book_id
         LEFT JOIN authors a ON ba.author_id = a.author_id
+    `;
+    
+    const params = [];
+    if (listId) {
+        query += `
+            INNER JOIN book_book_lists bbl ON b.book_id = bbl.book_id
+            WHERE bbl.book_list_id = $1
+        `;
+        params.push(listId);
+    }
+
+    query += `
         GROUP BY b.book_id, b.title
         ORDER BY b.title ASC;
     `;
+    
     try {
-        const result = await pool.query(query);
+        const result = await pool.query(query, params);
         res.json({ items: result.rows });
     } catch (error) {
         console.error('Error fetching books:', error);

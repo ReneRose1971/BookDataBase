@@ -1,7 +1,24 @@
 let selectedBookId = null;
 
 export async function mount(rootElement) {
-    const books = await fetchBooks();
+    const filterSelect = rootElement.querySelector('#booklistFilter');
+    
+    // Load lists for filter
+    const listsRes = await fetch('/api/book-lists');
+    const listsData = await listsRes.json();
+    const lists = listsData.items || [];
+    
+    if (filterSelect) {
+        filterSelect.innerHTML = lists.map(l => `<option value="${l.book_list_id}" ${l.name === 'Gelesene Bücher' ? 'selected' : ''}>${l.name}</option>`).join('');
+        filterSelect.onchange = async () => {
+            const books = await fetchBooks(filterSelect.value);
+            renderBooksTable(rootElement, books);
+        };
+    }
+
+    // Initial load with filter if available
+    const initialListId = filterSelect ? filterSelect.value : null;
+    const books = await fetchBooks(initialListId);
     renderBooksTable(rootElement, books);
 
     rootElement.addEventListener('click', handleTableClick);
@@ -45,9 +62,10 @@ export function unmount(rootElement) {
     dialogs.forEach(d => d.remove());
 }
 
-async function fetchBooks() {
+async function fetchBooks(listId = null) {
     try {
-        const res = await fetch('/api/books');
+        const url = listId ? `/api/books?listId=${listId}` : '/api/books';
+        const res = await fetch(url);
         const data = await res.json();
         return data.items || [];
     } catch (e) {
