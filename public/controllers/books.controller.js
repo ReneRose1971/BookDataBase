@@ -6,13 +6,16 @@ export async function mount(rootElement) {
 
     rootElement.addEventListener('click', handleTableClick);
 
-    const createBtn = rootElement.querySelector('.button-group button:nth-child(1)');
-    const editBtn = rootElement.querySelector('.button-group button:nth-child(2)');
-    const deleteBtn = rootElement.querySelector('.button-group button:nth-child(3)');
+    const buttons = rootElement.querySelectorAll('.button-group button');
+    const createBtn = buttons[0];
+    const editBtn = buttons[1];
+    const deleteBtn = buttons[2];
 
     if (createBtn) {
         createBtn.onclick = (e) => {
             e.preventDefault();
+            selectedBookId = null;
+            renderBooksTable(rootElement, books);
             openBookDialog(rootElement);
         };
     }
@@ -20,7 +23,10 @@ export async function mount(rootElement) {
     if (editBtn) {
         editBtn.onclick = (e) => {
             e.preventDefault();
-            if (!selectedBookId) return alert('Bitte ein Buch auswählen.');
+            if (!selectedBookId) {
+                alert('Bitte ein Buch auswählen.');
+                return;
+            }
             openBookDialog(rootElement, selectedBookId);
         };
     }
@@ -54,7 +60,7 @@ function renderBooksTable(rootElement, books) {
     const tbody = rootElement.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = books.map(book => `
-        <tr data-book-id="${book.book_id}" class="${selectedBookId === book.book_id ? 'selected' : ''}">
+        <tr data-book-id="${book.book_id}" class="${selectedBookId === book.book_id ? 'selected' : ''}" style="cursor: pointer;">
             <td>${book.title}</td>
             <td>${book.authors || ''}</td>
         </tr>
