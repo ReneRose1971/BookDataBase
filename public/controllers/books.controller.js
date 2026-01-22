@@ -120,7 +120,7 @@ async function openBookDialog(rootElement, bookId = null) {
         // Load baseline data
         const [authorsRes, listsRes] = await Promise.all([
             fetch('/api/authors'),
-            fetch('/api/book_lists')
+            fetch('/api/book-lists')
         ]);
         const allAuthors = await authorsRes.json();
         const bookLists = await listsRes.json();
