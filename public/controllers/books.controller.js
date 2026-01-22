@@ -69,6 +69,7 @@ async function openCreateBookDialog(rootElement) {
         const addAuthorBtn = dialog.querySelector('#addAuthorBtn');
         const removeAuthorBtn = dialog.querySelector('#removeAuthorBtn');
         const assignedTableBody = dialog.querySelector('#assignedAuthorsTable tbody');
+        const listsGrid = dialog.querySelector('.lists-checkbox-grid');
         const confirmBtn = dialog.querySelector('button[value="confirm"]');
         const cancelBtn = dialog.querySelector('button[value="cancel"]');
 
@@ -79,6 +80,16 @@ async function openCreateBookDialog(rootElement) {
         const authorsRes = await fetch('/api/authors');
         const authors = await authorsRes.json();
         authorSelect.innerHTML = authors.map(a => `<option value="${a.author_id}">${a.first_name} ${a.last_name}</option>`).join('');
+
+        // Load book lists
+        const listsRes = await fetch('/api/book_lists');
+        const bookLists = await listsRes.json();
+        listsGrid.innerHTML = bookLists.map(list => `
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 0;">
+                <input type="checkbox" name="book_list" value="${list.book_list_id}" ${list.name === 'Gelesene Bücher' || list.name === 'Wunschliste' ? '' : ''}>
+                ${list.name}
+            </label>
+        `).join('');
 
         const updateRemoveBtnState = () => {
             removeAuthorBtn.disabled = selectedInDialogId === null;
@@ -132,6 +143,9 @@ async function openCreateBookDialog(rootElement) {
             if (!title) return alert('Bitte Titel eingeben.');
             if (assignedAuthors.length === 0) return alert('Ein Buch muss mindestens einen Autor haben.');
 
+            const checkedLists = Array.from(dialog.querySelectorAll('input[name="book_list"]:checked')).map(cb => parseInt(cb.value));
+            if (checkedLists.length === 0) return alert('Bitte wählen Sie mindestens eine Liste aus.');
+
             const authorIds = assignedAuthors.map(a => a.author_id);
             
             // Check for duplicate
@@ -147,7 +161,7 @@ async function openCreateBookDialog(rootElement) {
             const createRes = await fetch('/api/books', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, authorIds })
+                body: JSON.stringify({ title, authorIds, listIds: checkedLists })
             });
 
             if (createRes.ok) {

@@ -553,24 +553,43 @@ app.get('/api/books/check-duplicate', async (req, res) => {
 });
 
 app.post('/api/books', async (req, res) => {
-    const { title, authorIds } = req.body;
-    if (!title || !authorIds || !Array.isArray(authorIds)) {
-        return res.status(400).json({ error: 'Ungültige Daten.' });
+    const { title, authorIds, listIds } = req.body;
+    
+    if (!title || !authorIds || !Array.isArray(authorIds) || authorIds.length === 0) {
+        return res.status(400).json({ error: 'Titel und mindestens ein Autor sind erforderlich.' });
     }
+
+    if (!listIds || !Array.isArray(listIds) || listIds.length === 0) {
+        return res.status(400).json({ error: 'Mindestens eine Bücherliste ist erforderlich.' });
+    }
+
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+
+        // Insert book
         const bookResult = await client.query(
             'INSERT INTO books (title) VALUES ($1) RETURNING book_id',
             [title.trim()]
         );
         const bookId = bookResult.rows[0].book_id;
+
+        // Insert authors relations
         for (const authorId of authorIds) {
             await client.query(
                 'INSERT INTO book_authors (book_id, author_id) VALUES ($1, $2)',
                 [bookId, authorId]
             );
         }
+
+        // Insert list relations
+        for (const listId of listIds) {
+            await client.query(
+                'INSERT INTO book_book_lists (book_id, book_list_id) VALUES ($1, $2)',
+                [bookId, listId]
+            );
+        }
+
         await client.query('COMMIT');
         res.status(201).json({ book_id: bookId, title });
     } catch (error) {
