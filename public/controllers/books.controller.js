@@ -123,7 +123,8 @@ async function openBookDialog(rootElement, bookId = null) {
             fetch('/api/book-lists')
         ]);
         const allAuthors = await authorsRes.json();
-        const bookLists = await listsRes.json();
+        const listsData = await listsRes.json();
+        const bookLists = listsData.items || [];
 
         authorSelect.innerHTML = allAuthors.map(a => `<option value="${a.author_id}">${a.first_name} ${a.last_name}</option>`).join('');
         listsGrid.innerHTML = bookLists.map(list => `
