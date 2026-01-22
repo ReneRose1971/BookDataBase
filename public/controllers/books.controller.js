@@ -67,23 +67,56 @@ async function openCreateBookDialog(rootElement) {
         const titleInput = dialog.querySelector('#bookTitle');
         const authorSelect = dialog.querySelector('#authorSelect');
         const addAuthorBtn = dialog.querySelector('#addAuthorBtn');
+        const removeAuthorBtn = dialog.querySelector('#removeAuthorBtn');
         const assignedTableBody = dialog.querySelector('#assignedAuthorsTable tbody');
         const confirmBtn = dialog.querySelector('button[value="confirm"]');
         const cancelBtn = dialog.querySelector('button[value="cancel"]');
 
         let assignedAuthors = [];
+        let selectedInDialogId = null;
 
         // Load authors for dropdown
         const authorsRes = await fetch('/api/authors');
         const authors = await authorsRes.json();
         authorSelect.innerHTML = authors.map(a => `<option value="${a.author_id}">${a.first_name} ${a.last_name}</option>`).join('');
 
+        const updateRemoveBtnState = () => {
+            removeAuthorBtn.disabled = selectedInDialogId === null;
+        };
+
+        const renderDialogAuthors = () => {
+            assignedTableBody.innerHTML = assignedAuthors.map(a => `
+                <tr data-id="${a.author_id}" class="${selectedInDialogId === a.author_id ? 'selected' : ''}">
+                    <td>${a.first_name}</td>
+                    <td>${a.last_name}</td>
+                </tr>
+            `).join('');
+
+            assignedTableBody.querySelectorAll('tr').forEach(row => {
+                row.onclick = () => {
+                    const id = parseInt(row.dataset.id);
+                    selectedInDialogId = (selectedInDialogId === id) ? null : id;
+                    renderDialogAuthors();
+                    updateRemoveBtnState();
+                };
+            });
+        };
+
         addAuthorBtn.addEventListener('click', () => {
             const authorId = parseInt(authorSelect.value);
             const author = authors.find(a => a.author_id === authorId);
             if (author && !assignedAuthors.find(a => a.author_id === authorId)) {
                 assignedAuthors.push(author);
-                renderAssignedAuthors(assignedTableBody, assignedAuthors);
+                renderDialogAuthors();
+            }
+        });
+
+        removeAuthorBtn.addEventListener('click', () => {
+            if (selectedInDialogId !== null) {
+                assignedAuthors = assignedAuthors.filter(a => a.author_id !== selectedInDialogId);
+                selectedInDialogId = null;
+                renderDialogAuthors();
+                updateRemoveBtnState();
             }
         });
 
@@ -97,7 +130,7 @@ async function openCreateBookDialog(rootElement) {
             e.preventDefault();
             const title = titleInput.value.trim();
             if (!title) return alert('Bitte Titel eingeben.');
-            if (assignedAuthors.length === 0) return alert('Bitte mindestens einen Autor hinzufügen.');
+            if (assignedAuthors.length === 0) return alert('Ein Buch muss mindestens einen Autor haben.');
 
             const authorIds = assignedAuthors.map(a => a.author_id);
             
@@ -134,24 +167,7 @@ async function openCreateBookDialog(rootElement) {
     }
 }
 
+// Remove old helper function as it's now integrated in openCreateBookDialog
 function renderAssignedAuthors(tbody, authors) {
-    tbody.innerHTML = authors.map(a => `
-        <tr data-id="${a.author_id}">
-            <td>${a.first_name}</td>
-            <td>${a.last_name}</td>
-        </tr>
-    `).join('');
-    
-    tbody.querySelectorAll('tr').forEach(row => {
-        row.style.cursor = 'pointer';
-        row.title = 'Klicken zum Entfernen';
-        row.onclick = () => {
-            const id = parseInt(row.dataset.id);
-            const index = authors.findIndex(a => a.author_id === id);
-            if (index > -1) {
-                authors.splice(index, 1);
-                renderAssignedAuthors(tbody, authors);
-            }
-        };
-    });
+    // Deprecated
 }
