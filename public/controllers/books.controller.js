@@ -136,16 +136,17 @@ async function openCreateBookDialog(rootElement) {
 
 function renderAssignedAuthors(tbody, authors) {
     tbody.innerHTML = authors.map(a => `
-        <tr>
+        <tr data-id="${a.author_id}">
             <td>${a.first_name}</td>
             <td>${a.last_name}</td>
-            <td><button type="button" class="remove-author-btn" data-id="${a.author_id}">✖</button></td>
         </tr>
     `).join('');
     
-    tbody.querySelectorAll('.remove-author-btn').forEach(btn => {
-        btn.onclick = () => {
-            const id = parseInt(btn.dataset.id);
+    tbody.querySelectorAll('tr').forEach(row => {
+        row.style.cursor = 'pointer';
+        row.title = 'Klicken zum Entfernen';
+        row.onclick = () => {
+            const id = parseInt(row.dataset.id);
             const index = authors.findIndex(a => a.author_id === id);
             if (index > -1) {
                 authors.splice(index, 1);
