@@ -504,6 +504,77 @@ app.delete('/api/tags/:id', async (req, res) => {
     }
 });
 
+app.get('/api/books', async (req, res) => {
+    const query = `
+        SELECT b.book_id, b.title, STRING_AGG(a.first_name || ' ' || a.last_name, ', ') as authors
+        FROM books b
+        LEFT JOIN book_authors ba ON b.book_id = ba.book_id
+        LEFT JOIN authors a ON ba.author_id = a.author_id
+        GROUP BY b.book_id, b.title
+        ORDER BY b.title ASC;
+    `;
+    try {
+        const result = await pool.query(query);
+        res.json({ items: result.rows });
+    } catch (error) {
+        console.error('Error fetching books:', error);
+        res.status(500).json({ error: 'Fehler beim Laden der Bücher.' });
+    }
+});
+
+app.get('/api/books/check-duplicate', async (req, res) => {
+    const { title, authorIds } = req.query;
+    if (!title || !authorIds) {
+        return res.status(400).json({ error: 'Titel und Autoren-IDs erforderlich.' });
+    }
+    const ids = JSON.parse(authorIds);
+    try {
+        const query = `
+            SELECT b.book_id
+            FROM books b
+            JOIN book_authors ba ON b.book_id = ba.book_id
+            WHERE LOWER(b.title) = LOWER($1)
+            GROUP BY b.book_id
+            HAVING ARRAY_AGG(ba.author_id ORDER BY ba.author_id) = ARRAY(SELECT unnest($2::int[]) ORDER BY 1);
+        `;
+        const result = await pool.query(query, [title.trim(), ids]);
+        res.json({ duplicate: result.rowCount > 0 });
+    } catch (error) {
+        console.error('Error checking duplicate book:', error);
+        res.status(500).json({ error: 'Fehler bei der Duplikatsprüfung.' });
+    }
+});
+
+app.post('/api/books', async (req, res) => {
+    const { title, authorIds } = req.body;
+    if (!title || !authorIds || !Array.isArray(authorIds)) {
+        return res.status(400).json({ error: 'Ungültige Daten.' });
+    }
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const bookResult = await client.query(
+            'INSERT INTO books (title) VALUES ($1) RETURNING book_id',
+            [title.trim()]
+        );
+        const bookId = bookResult.rows[0].book_id;
+        for (const authorId of authorIds) {
+            await client.query(
+                'INSERT INTO book_authors (book_id, author_id) VALUES ($1, $2)',
+                [bookId, authorId]
+            );
+        }
+        await client.query('COMMIT');
+        res.status(201).json({ book_id: bookId, title });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error creating book:', error);
+        res.status(500).json({ error: 'Fehler beim Erstellen des Buches.' });
+    } finally {
+        client.release();
+    }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });

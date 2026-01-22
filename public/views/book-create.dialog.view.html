@@ -1,0 +1,34 @@
+<dialog class="book-details-dialog">
+  <form method="dialog">
+    <h1>Neues Buch</h1>
+    
+    <label for="bookTitle">Titel:</label>
+    <input type="text" id="bookTitle" name="title" required style="width: 100%;">
+
+    <div class="author-selection-container" style="display: flex; gap: 20px; margin-top: 20px;">
+      <div class="author-left" style="flex: 1;">
+        <label for="authorSelect">Autor auswählen:</label>
+        <select id="authorSelect"></select>
+        <button type="button" id="addAuthorBtn" class="func-button">Autor hinzufügen</button>
+      </div>
+      <div class="author-right" style="flex: 1;">
+        <label>Zugewiesene Autoren:</label>
+        <table id="assignedAuthorsTable">
+          <thead>
+            <tr>
+              <th>Vorname</th>
+              <th>Nachname</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <menu style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" value="cancel" class="func-button">Abbrechen</button>
+      <button value="confirm" class="func-button">Bestätigen</button>
+    </menu>
+  </form>
+</dialog>
