@@ -28,7 +28,7 @@
 #booklistFilter {
     background-color: var(--color-light-gray);
     border: 1px solid #ccc;
-    color: inherit;
+    color: white;
 }
 
 .button-group .func-button {
