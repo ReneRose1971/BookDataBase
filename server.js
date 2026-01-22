@@ -286,8 +286,15 @@ app.delete('/api/book-lists/:id', async (req, res) => {
 app.get('/api/authors', async (req, res) => {
     try {
         const query = `
-            SELECT author_id AS author_id, first_name, last_name
-            FROM authors
+            SELECT 
+                a.author_id, 
+                a.first_name, 
+                a.last_name,
+                COUNT(ba.book_id)::int AS book_count
+            FROM authors a
+            LEFT JOIN book_authors ba ON a.author_id = ba.author_id
+            GROUP BY a.author_id, a.first_name, a.last_name
+            ORDER BY a.last_name ASC, a.first_name ASC
         `;
         const result = await pool.query(query);
         res.json(result.rows);

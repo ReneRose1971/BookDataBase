@@ -83,8 +83,8 @@ function renderAuthorsTable(rootElement, authors) {
         const row = document.createElement('tr');
         row.dataset.authorId = author.author_id;
         row.innerHTML = `
-            <td>${author.first_name}</td>
             <td>${author.last_name}</td>
+            <td>${author.first_name}</td>
             <td>${author.book_count || 0}</td>
         `;
         tbody.appendChild(row);
