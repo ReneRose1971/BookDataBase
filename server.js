@@ -545,7 +545,11 @@ app.get('/api/books/check-duplicate', async (req, res) => {
             HAVING ARRAY_AGG(ba.author_id ORDER BY ba.author_id) = ARRAY(SELECT unnest($2::int[]) ORDER BY 1);
         `;
         const result = await pool.query(query, [title.trim(), ids]);
-        res.json({ duplicate: result.rowCount > 0 });
+        if (result.rowCount > 0) {
+            res.json({ duplicate: true, book_id: result.rows[0].book_id });
+        } else {
+            res.json({ duplicate: false });
+        }
     } catch (error) {
         console.error('Error checking duplicate book:', error);
         res.status(500).json({ error: 'Fehler bei der Duplikatsprüfung.' });

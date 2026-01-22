@@ -207,9 +207,10 @@ async function openBookDialog(rootElement, bookId = null) {
             
             // Check for duplicate
             const checkRes = await fetch(`/api/books/check-duplicate?title=${encodeURIComponent(title)}&authorIds=${JSON.stringify(authorIds)}`);
-            const { duplicate, book_id: existingId } = await checkRes.json();
+            const checkData = await checkRes.json();
             
-            if (duplicate && (!bookId || existingId !== bookId)) {
+            // If duplicate exists and it's either a new book or a different book being edited
+            if (checkData.duplicate && (!bookId || checkData.book_id !== bookId)) {
                 alert('Ein Buch mit diesem Titel und diesen Autoren existiert bereits.');
                 return;
             }
