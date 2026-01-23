@@ -741,3 +741,35 @@ app.delete('/api/authors/:id', async (req, res) => {
         res.status(500).json({ error: 'Fehler beim Löschen des Autors.' });
     }
 });
+
+app.delete('/api/books/:id', async (req, res) => {
+    const bookId = parseInt(req.params.id, 10);
+
+    if (isNaN(bookId)) {
+        return res.status(400).json({ error: 'Ungültige Buch-ID.' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        await client.query('DELETE FROM book_authors WHERE book_id = $1', [bookId]);
+        await client.query('DELETE FROM book_book_lists WHERE book_id = $1', [bookId]);
+        const deleteResult = await client.query('DELETE FROM books WHERE book_id = $1', [bookId]);
+
+        if (deleteResult.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Buch nicht gefunden.' });
+        }
+
+        await client.query('COMMIT');
+        res.status(204).send();
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error deleting book:', error);
+        res.status(500).json({ error: 'Interner Serverfehler.' });
+    } finally {
+        client.release();
+    }
+});

@@ -79,8 +79,12 @@ async function deleteSelectedBook(rootElement) {
             const books = await fetchBooks();
             renderBooksTable(rootElement, books);
             removeEditor(rootElement);
+        } else {
+            const errorText = await res.text();
+            alert(`Fehler beim Löschen (${res.status}): ${errorText}`);
         }
     } catch (e) {
+        alert(`Ein Fehler ist aufgetreten: ${e.message}`);
         console.error(e);
     }
 }
