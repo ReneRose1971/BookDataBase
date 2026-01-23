@@ -128,7 +128,10 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
         const listsData = await listsRes.json();
         const bookLists = listsData.items || [];
 
-        authorSelect.innerHTML = allAuthors.map(a => `<option value="${a.author_id}">${a.first_name} ${a.last_name}</option>`).join('');
+        authorSelect.innerHTML = [
+            '<option value="">Bitte auswählen</option>',
+            ...allAuthors.map(a => `<option value="${a.author_id}">${a.first_name} ${a.last_name}</option>`)
+        ].join('');
         listsGrid.innerHTML = bookLists.map(list => `
             <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 0;">
                 <input type="checkbox" name="book_list" value="${list.book_list_id}">
@@ -184,12 +187,12 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
         }
 
         addAuthorBtn.addEventListener('click', () => {
-            if (!authorSelect.value) {
+            if (authorSelect.value === '') {
                 alert('Bitte einen Autor auswählen.');
                 return;
             }
-            const authorId = parseInt(authorSelect.value, 10);
-            if (Number.isNaN(authorId)) {
+            const authorId = Number(authorSelect.value);
+            if (!Number.isInteger(authorId)) {
                 alert('Bitte einen gültigen Autor auswählen.');
                 return;
             }
