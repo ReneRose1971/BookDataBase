@@ -5,7 +5,7 @@ let cachedTags = [];
 export async function mount(rootElement) {
     cachedTags = await fetchTags();
     renderTagsTable(rootElement, cachedTags);
-    resetEditor(rootElement);
+    removeEditor(rootElement);
 
     rootElement.addEventListener('click', handleTableClick);
 
@@ -17,15 +17,12 @@ export async function mount(rootElement) {
     if (editBtn) editBtn.addEventListener('click', () => setEditorMode(rootElement, 'edit'));
     if (deleteBtn) deleteBtn.addEventListener('click', deleteSelectedTag);
 
-    const confirmBtn = rootElement.querySelector('[data-tag-editor-action="confirm"]');
-    const cancelBtn = rootElement.querySelector('[data-tag-editor-action="cancel"]');
-
-    if (confirmBtn) confirmBtn.addEventListener('click', (event) => handleConfirm(event, rootElement));
-    if (cancelBtn) cancelBtn.addEventListener('click', (event) => handleCancel(event, rootElement));
+    rootElement.addEventListener('click', handleEditorActions);
 }
 
 export function unmount(rootElement) {
     rootElement.removeEventListener('click', handleTableClick);
+    rootElement.removeEventListener('click', handleEditorActions);
 }
 
 async function fetchTags() {
@@ -58,10 +55,8 @@ function handleTableClick(event) {
     }
 }
 
-function setEditorMode(rootElement, mode) {
+async function setEditorMode(rootElement, mode) {
     editorMode = mode;
-    const input = rootElement.querySelector('#tagNameEditorInput');
-    if (!input) return;
     if (mode === 'edit') {
         if (!selectedTagId) {
             alert('Bitte Tag auswählen.');
@@ -72,22 +67,17 @@ function setEditorMode(rootElement, mode) {
             alert('Ausgewähltes Tag nicht gefunden.');
             return;
         }
-        showEditor(rootElement);
-        input.value = selectedTag.name;
+        await renderEditor(rootElement, selectedTag.name);
     } else {
-        showEditor(rootElement);
-        input.value = '';
+        await renderEditor(rootElement, '');
     }
-    input.focus();
 }
 
-function resetEditor(rootElement) {
-    editorMode = 'create';
-    const input = rootElement.querySelector('#tagNameEditorInput');
-    if (input) {
-        input.value = '';
+function removeEditor(rootElement) {
+    const editor = rootElement.querySelector('.tag-name-editor');
+    if (editor) {
+        editor.remove();
     }
-    hideEditor(rootElement);
 }
 
 function isDuplicateName(name, excludeTagId = null) {
@@ -131,7 +121,7 @@ async function handleConfirm(event, rootElement) {
 
 function handleCancel(event, rootElement) {
     event.preventDefault();
-    resetEditor(rootElement);
+    removeEditor(rootElement);
 }
 
 async function createTag(rootElement, name) {
@@ -144,7 +134,7 @@ async function createTag(rootElement, name) {
         if (res.ok) {
             cachedTags = await fetchTags();
             renderTagsTable(rootElement, cachedTags);
-            resetEditor(rootElement);
+            removeEditor(rootElement);
         } else {
             const err = await res.json();
             alert(err.error);
@@ -164,7 +154,7 @@ async function updateTag(rootElement, name) {
         if (res.ok) {
             cachedTags = await fetchTags();
             renderTagsTable(rootElement, cachedTags);
-            resetEditor(rootElement);
+            removeEditor(rootElement);
         } else {
             const err = await res.json();
             alert(err.error);
@@ -194,7 +184,7 @@ async function deleteSelectedTag() {
             selectedTagId = null;
             cachedTags = await fetchTags();
             renderTagsTable(rootElement, cachedTags);
-            resetEditor(rootElement);
+            removeEditor(rootElement);
         } else {
             const err = await res.json();
             alert(err.error);
@@ -204,16 +194,31 @@ async function deleteSelectedTag() {
     }
 }
 
-function showEditor(rootElement) {
-    const editor = rootElement.querySelector('.tag-name-editor');
-    if (editor) {
-        editor.classList.remove('hidden');
+async function renderEditor(rootElement, value) {
+    const slot = rootElement.querySelector('.tag-editor-slot');
+    if (!slot) return;
+    removeEditor(rootElement);
+    const response = await fetch('/views/tag-name-editor.view.html');
+    if (!response.ok) {
+        alert('Tag-Editor konnte nicht geladen werden.');
+        return;
+    }
+    slot.innerHTML = await response.text();
+    const input = rootElement.querySelector('#tagNameEditorInput');
+    if (input) {
+        input.value = value;
+        input.focus();
     }
 }
 
-function hideEditor(rootElement) {
-    const editor = rootElement.querySelector('.tag-name-editor');
-    if (editor) {
-        editor.classList.add('hidden');
+function handleEditorActions(event) {
+    const actionButton = event.target.closest('[data-tag-editor-action]');
+    if (!actionButton) return;
+    const rootElement = event.currentTarget;
+    if (actionButton.dataset.tagEditorAction === 'confirm') {
+        handleConfirm(event, rootElement);
+    }
+    if (actionButton.dataset.tagEditorAction === 'cancel') {
+        handleCancel(event, rootElement);
     }
 }
