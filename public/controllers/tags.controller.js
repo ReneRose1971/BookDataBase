@@ -1,8 +1,11 @@
 let selectedTagId = null;
+let editorMode = 'create';
+let cachedTags = [];
 
 export async function mount(rootElement) {
-    const tags = await fetchTags();
-    renderTagsTable(rootElement, tags);
+    cachedTags = await fetchTags();
+    renderTagsTable(rootElement, cachedTags);
+    resetEditor(rootElement);
 
     rootElement.addEventListener('click', handleTableClick);
 
@@ -10,15 +13,19 @@ export async function mount(rootElement) {
     const editBtn = rootElement.querySelector('.button-group button:nth-child(2)');
     const deleteBtn = rootElement.querySelector('.button-group button:nth-child(3)');
 
-    if (createBtn) createBtn.addEventListener('click', openCreateTagDialog);
-    if (editBtn) editBtn.addEventListener('click', openEditTagDialog);
+    if (createBtn) createBtn.addEventListener('click', () => setEditorMode(rootElement, 'create'));
+    if (editBtn) editBtn.addEventListener('click', () => setEditorMode(rootElement, 'edit'));
     if (deleteBtn) deleteBtn.addEventListener('click', deleteSelectedTag);
+
+    const confirmBtn = rootElement.querySelector('[data-tag-editor-action="confirm"]');
+    const cancelBtn = rootElement.querySelector('[data-tag-editor-action="cancel"]');
+
+    if (confirmBtn) confirmBtn.addEventListener('click', (event) => handleConfirm(event, rootElement));
+    if (cancelBtn) cancelBtn.addEventListener('click', (event) => handleCancel(event, rootElement));
 }
 
 export function unmount(rootElement) {
     rootElement.removeEventListener('click', handleTableClick);
-    const dialogs = document.querySelectorAll('body > dialog');
-    dialogs.forEach(d => d.remove());
 }
 
 async function fetchTags() {
@@ -40,15 +47,6 @@ function renderTagsTable(rootElement, tags) {
             <td>${tag.book_count || 0}</td>
         </tr>
     `).join('');
-
-    if (selectedTagId) {
-        const selectedRow = tbody.querySelector(`tr[data-tag-id="${selectedTagId}"]`);
-        if (selectedRow) {
-            selectedRow.classList.add('selected');
-        } else {
-            selectedTagId = null;
-        }
-    }
 }
 
 function handleTableClick(event) {
@@ -60,128 +58,117 @@ function handleTableClick(event) {
     }
 }
 
-async function openCreateTagDialog() {
+function setEditorMode(rootElement, mode) {
+    editorMode = mode;
+    const input = rootElement.querySelector('#tagNameEditorInput');
+    if (!input) return;
+    if (mode === 'edit') {
+        if (!selectedTagId) {
+            alert('Bitte Tag auswählen.');
+            return;
+        }
+        const selectedTag = cachedTags.find((tag) => tag.tag_id === selectedTagId);
+        if (!selectedTag) {
+            alert('Ausgewähltes Tag nicht gefunden.');
+            return;
+        }
+        showEditor(rootElement);
+        input.value = selectedTag.name;
+    } else {
+        showEditor(rootElement);
+        input.value = '';
+    }
+    input.focus();
+}
+
+function resetEditor(rootElement) {
+    editorMode = 'create';
+    const input = rootElement.querySelector('#tagNameEditorInput');
+    if (input) {
+        input.value = '';
+    }
+    hideEditor(rootElement);
+}
+
+function isDuplicateName(name, excludeTagId = null) {
+    const normalized = name.trim().toLowerCase();
+    return cachedTags.some((tag) => {
+        if (excludeTagId && tag.tag_id === excludeTagId) {
+            return false;
+        }
+        return tag.name.trim().toLowerCase() === normalized;
+    });
+}
+
+async function handleConfirm(event, rootElement) {
+    event.preventDefault();
+    const input = rootElement.querySelector('#tagNameEditorInput');
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) {
+        alert('Name ist erforderlich.');
+        return;
+    }
+
+    if (editorMode === 'edit') {
+        if (!selectedTagId) {
+            alert('Bitte Tag auswählen.');
+            return;
+        }
+        if (isDuplicateName(name, selectedTagId)) {
+            alert('Ein Tag mit diesem Namen existiert bereits.');
+            return;
+        }
+        await updateTag(rootElement, name);
+    } else {
+        if (isDuplicateName(name)) {
+            alert('Ein Tag mit diesem Namen existiert bereits.');
+            return;
+        }
+        await createTag(rootElement, name);
+    }
+}
+
+function handleCancel(event, rootElement) {
+    event.preventDefault();
+    resetEditor(rootElement);
+}
+
+async function createTag(rootElement, name) {
     try {
-        document.querySelectorAll('body > dialog').forEach(dialog => dialog.remove());
-        const dialog = document.createElement('dialog');
-        dialog.innerHTML = `
-            <form method="dialog">
-                <h1>Neues Tag</h1>
-                <label for="tagName">Name:</label>
-                <input type="text" id="tagName" name="name" required>
-
-                <menu>
-                    <button type="button" value="cancel" class="func-button">Abbrechen</button>
-                    <button value="confirm" class="func-button">Bestätigen</button>
-                </menu>
-            </form>
-        `;
-        document.body.appendChild(dialog);
-
-        const confirmBtn = dialog.querySelector('button[value="confirm"]');
-        const cancelBtn = dialog.querySelector('button[value="cancel"]');
-        const nameInput = dialog.querySelector('#tagName');
-
-        dialog.addEventListener('close', () => dialog.remove());
-        dialog.showModal();
-
-        cancelBtn.onclick = (e) => {
-            e.preventDefault();
-            dialog.close();
-        };
-
-        confirmBtn.onclick = async (e) => {
-            e.preventDefault();
-            const name = nameInput.value.trim();
-            if (!name) return alert('Name ist erforderlich.');
-
-            try {
-                const res = await fetch('/api/tags', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name })
-                });
-                if (res.ok) {
-                    const tags = await fetchTags();
-                    renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
-                    dialog.close();
-                } else {
-                    const err = await res.json();
-                    alert(err.error);
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        };
+        const res = await fetch('/api/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        if (res.ok) {
+            cachedTags = await fetchTags();
+            renderTagsTable(rootElement, cachedTags);
+            resetEditor(rootElement);
+        } else {
+            const err = await res.json();
+            alert(err.error);
+        }
     } catch (e) {
         console.error(e);
     }
 }
 
-async function openEditTagDialog() {
-    if (!selectedTagId) return alert('Bitte Tag auswählen.');
-    
+async function updateTag(rootElement, name) {
     try {
-        const tagRes = await fetch('/api/tags');
-        const tags = await tagRes.json();
-        const tag = tags.find(t => t.tag_id === selectedTagId);
-        if (!tag) {
-            selectedTagId = null;
-            return alert('Tag nicht gefunden.');
+        const res = await fetch(`/api/tags/${selectedTagId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        if (res.ok) {
+            cachedTags = await fetchTags();
+            renderTagsTable(rootElement, cachedTags);
+            resetEditor(rootElement);
+        } else {
+            const err = await res.json();
+            alert(err.error);
         }
-
-        document.querySelectorAll('body > dialog').forEach(dialog => dialog.remove());
-        const dialog = document.createElement('dialog');
-        dialog.innerHTML = `
-            <form method="dialog">
-                <h1>Tag bearbeiten</h1>
-                <label for="tagName">Name:</label>
-                <input type="text" id="tagName" name="name" required>
-
-                <menu>
-                    <button type="button" value="cancel" class="func-button">Abbrechen</button>
-                    <button value="confirm" class="func-button">Bestätigen</button>
-                </menu>
-            </form>
-        `;
-        document.body.appendChild(dialog);
-
-        const confirmBtn = dialog.querySelector('button[value="confirm"]');
-        const cancelBtn = dialog.querySelector('button[value="cancel"]');
-        const nameInput = dialog.querySelector('#tagName');
-        nameInput.value = tag.name;
-
-        dialog.addEventListener('close', () => dialog.remove());
-        dialog.showModal();
-
-        cancelBtn.onclick = (e) => {
-            e.preventDefault();
-            dialog.close();
-        };
-
-        confirmBtn.onclick = async (e) => {
-            e.preventDefault();
-            const name = nameInput.value.trim();
-            if (!name) return alert('Name ist erforderlich.');
-
-            try {
-                const res = await fetch(`/api/tags/${selectedTagId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name })
-                });
-                if (res.ok) {
-                    const tags = await fetchTags();
-                    renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
-                    dialog.close();
-                } else {
-                    const err = await res.json();
-                    alert(err.error);
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        };
     } catch (e) {
         console.error(e);
     }
@@ -189,18 +176,44 @@ async function openEditTagDialog() {
 
 async function deleteSelectedTag() {
     if (!selectedTagId) return alert('Bitte Tag auswählen.');
-    if (!confirm('Tag wirklich löschen?')) return;
+    const rootElement = document.querySelector('.view-wrapper-tags');
+    const selectedTag = cachedTags.find((tag) => tag.tag_id === selectedTagId);
+    if (!selectedTag) {
+        alert('Ausgewähltes Tag nicht gefunden.');
+        return;
+    }
+    if (selectedTag.book_count > 0) {
+        const removeRelations = confirm('Dieses Tag ist mit Büchern verknüpft. Verknüpfungen entfernen und Tag löschen?');
+        if (!removeRelations) return;
+    } else if (!confirm('Tag wirklich löschen?')) {
+        return;
+    }
     try {
         const res = await fetch(`/api/tags/${selectedTagId}`, { method: 'DELETE' });
         if (res.ok) {
             selectedTagId = null;
-            const tags = await fetchTags();
-            renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
+            cachedTags = await fetchTags();
+            renderTagsTable(rootElement, cachedTags);
+            resetEditor(rootElement);
         } else {
             const err = await res.json();
             alert(err.error);
         }
     } catch (e) {
         console.error(e);
+    }
+}
+
+function showEditor(rootElement) {
+    const editor = rootElement.querySelector('.tag-name-editor');
+    if (editor) {
+        editor.classList.remove('hidden');
+    }
+}
+
+function hideEditor(rootElement) {
+    const editor = rootElement.querySelector('.tag-name-editor');
+    if (editor) {
+        editor.classList.add('hidden');
     }
 }
