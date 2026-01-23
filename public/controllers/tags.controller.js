@@ -40,8 +40,9 @@ async function fetchTags() {
 function renderTagsTable(rootElement, tags) {
     const tbody = rootElement.querySelector('tbody');
     if (!tbody) return;
+    selectedTagId = null;
     tbody.innerHTML = tags.map(tag => `
-        <tr data-tag-id="${tag.tag_id}">
+        <tr data-tag-id="${String(tag.tag_id)}">
             <td>${tag.name}</td>
             <td>${tag.book_count || 0}</td>
         </tr>
@@ -63,7 +64,7 @@ async function setEditorMode(rootElement, mode) {
             alert('Bitte Tag auswählen.');
             return;
         }
-        const selectedTag = cachedTags.find((tag) => tag.tag_id === selectedTagId);
+        const selectedTag = cachedTags.find((tag) => Number(tag.tag_id) === selectedTagId);
         if (!selectedTag) {
             alert('Ausgewähltes Tag nicht gefunden.');
             return;
@@ -175,7 +176,7 @@ async function updateTag(rootElement, name) {
 async function deleteSelectedTag() {
     if (!selectedTagId) return alert('Bitte Tag auswählen.');
     const rootElement = document.querySelector('.view-wrapper-tags');
-    const selectedTag = cachedTags.find((tag) => tag.tag_id === selectedTagId);
+    const selectedTag = cachedTags.find((tag) => Number(tag.tag_id) === selectedTagId);
     if (!selectedTag) {
         alert('Ausgewähltes Tag nicht gefunden.');
         return;
