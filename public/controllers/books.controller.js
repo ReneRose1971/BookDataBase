@@ -134,6 +134,7 @@ async function openBookDialog(rootElement, bookId = null) {
 
         let assignedAuthors = [];
         let selectedInDialogId = null;
+        const removedAuthorIds = new Set();
 
         // Load baseline data
         const [authorsRes, listsRes] = await Promise.all([
@@ -154,6 +155,16 @@ async function openBookDialog(rootElement, bookId = null) {
 
         const updateRemoveBtnState = () => {
             removeAuthorBtn.disabled = selectedInDialogId === null;
+        };
+
+        const removeAssignedAuthor = async (authorId) => {
+            if (bookId) {
+                removedAuthorIds.add(authorId);
+            }
+            assignedAuthors = assignedAuthors.filter(a => a.author_id !== authorId);
+            selectedInDialogId = null;
+            renderDialogAuthors();
+            updateRemoveBtnState();
         };
 
         const renderDialogAuthors = () => {
@@ -181,6 +192,7 @@ async function openBookDialog(rootElement, bookId = null) {
             titleInput.value = bookData.title;
             assignedAuthors = bookData.authors;
             renderDialogAuthors();
+            updateRemoveBtnState();
             
             bookData.listIds.forEach(id => {
                 const cb = dialog.querySelector(`input[name="book_list"][value="${id}"]`);
@@ -194,15 +206,15 @@ async function openBookDialog(rootElement, bookId = null) {
             if (author && !assignedAuthors.find(a => a.author_id === authorId)) {
                 assignedAuthors.push(author);
                 renderDialogAuthors();
+                updateRemoveBtnState();
             }
         });
 
         removeAuthorBtn.addEventListener('click', () => {
             if (selectedInDialogId !== null) {
-                assignedAuthors = assignedAuthors.filter(a => a.author_id !== selectedInDialogId);
-                selectedInDialogId = null;
-                renderDialogAuthors();
-                updateRemoveBtnState();
+                removeAssignedAuthor(selectedInDialogId);
+            } else {
+                alert('Bitte einen Autor auswählen.');
             }
         });
 
@@ -215,7 +227,7 @@ async function openBookDialog(rootElement, bookId = null) {
         confirmBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             const title = titleInput.value.trim();
-            if (!title) return alert('Bitte Titel eingeben.');
+            if (!title || title.length < 2) return alert('Bitte einen gültigen Titel eingeben.');
             if (assignedAuthors.length === 0) return alert('Ein Buch muss mindestens einen Autor haben.');
 
             const checkedLists = Array.from(dialog.querySelectorAll('input[name="book_list"]:checked')).map(cb => parseInt(cb.value));
