@@ -184,12 +184,26 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
         }
 
         addAuthorBtn.addEventListener('click', () => {
-            const authorId = parseInt(authorSelect.value);
+            if (!authorSelect.value) {
+                alert('Bitte einen Autor auswählen.');
+                return;
+            }
+            const authorId = parseInt(authorSelect.value, 10);
+            if (Number.isNaN(authorId)) {
+                alert('Bitte einen gültigen Autor auswählen.');
+                return;
+            }
             const author = allAuthors.find(a => a.author_id === authorId);
+            if (!author) {
+                alert('Ausgewählter Autor nicht gefunden.');
+                return;
+            }
             if (author && !assignedAuthors.find(a => a.author_id === authorId)) {
                 assignedAuthors.push(author);
                 renderDialogAuthors();
                 updateRemoveBtnState();
+            } else {
+                alert('Dieser Autor ist bereits zugewiesen.');
             }
         });
 
