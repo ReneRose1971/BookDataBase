@@ -1,27 +1,48 @@
-import { loadViewAndController } from './view-loader.js';
+import { loadFragment } from './view-loader.js';
 
-function openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.classList.remove("hidden");
+const routes = {
+    books: { controller: './controllers/books.controller.js', title: 'Bücher' },
+    authors: { controller: './controllers/authors.controller.js', title: 'Autoren' },
+    lists: { controller: './controllers/lists.controller.js', title: 'Listen' },
+    tags: { controller: './controllers/tags.controller.js', title: 'Tags' }
+};
+
+let currentController = null;
+
+async function loadView(viewName) {
+    const route = routes[viewName];
+    if (!route) {
+        console.error(`Route not found for view: ${viewName}`);
+        return;
+    }
+
+    const { controller, title } = route;
+    const container = document.querySelector('#app');
+
+    if (currentController && currentController.unmount) {
+        currentController.unmount();
+    }
+
+    try {
+        const module = await import(controller);
+        currentController = module;
+
+        document.title = title;
+        await loadFragment(container, `/views/${viewName}.view.html`);
+        if (module.mount) {
+            module.mount(container);
+        }
+    } catch (error) {
+        console.error(`Failed to load view: ${viewName}`, error);
     }
 }
 
-const viewControllerMap = {
-    books: { view: '/views/books.view.html', controller: '/controllers/books.controller.js', title: 'Bücher' },
-    authors: { view: '/views/authors.view.html', controller: '/controllers/authors.controller.js', title: 'Autoren' },
-    lists: { view: '/views/lists.view.html', controller: '/controllers/lists.controller.js', title: 'Listen' },
-    tags: { view: '/views/tags.view.html', controller: '/controllers/tags.controller.js', title: 'Tags' }
-};
-
 document.querySelectorAll('.nav-button[data-view]').forEach(button => {
-    button.addEventListener('click', async (event) => {
-        const viewKey = event.target.dataset.view;
-        if (viewControllerMap[viewKey]) {
-            const { view, controller, title } = viewControllerMap[viewKey];
-            await loadViewAndController(view, controller, title);
-        } else {
-            console.error(`No mapping found for view: ${viewKey}`);
-        }
+    button.addEventListener('click', () => {
+        const viewName = button.dataset.view;
+        loadView(viewName);
     });
 });
+
+// Load the default view on initial page load
+loadView('books');
