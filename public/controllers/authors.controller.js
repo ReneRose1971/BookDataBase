@@ -309,3 +309,7 @@ function handleEditorActions(event) {
         handleCancel(event, rootElement);
     }
 }
+
+// Bound events:
+// - click on root (delegation)
+// - row selection via enableSingleRowSelection

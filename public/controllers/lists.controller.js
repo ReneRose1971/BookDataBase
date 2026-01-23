@@ -28,6 +28,10 @@ export function unmount(rootElement) {
     rootElement.removeEventListener('click', handleEditorActions);
 }
 
+// Bound events:
+// - click on root (delegation)
+// - row selection via enableSingleRowSelection
+
 async function fetchLists() {
     try {
         const response = await fetch('/api/book-lists');

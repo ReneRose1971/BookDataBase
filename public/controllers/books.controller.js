@@ -4,20 +4,22 @@ import * as bookEditor from '../bookEditor.js';
 let selectedBookId = null;
 let editorMode = 'create';
 
+const abortController = new AbortController();
+
 export async function mount(rootElement) {
     const filterSelect = rootElement.querySelector('#booklistFilter');
-    
+
     // Load lists for filter
     const listsRes = await fetch('/api/book-lists');
     const listsData = await listsRes.json();
     const lists = listsData.items || [];
-    
+
     if (filterSelect) {
         filterSelect.innerHTML = lists.map(l => `<option value="${l.book_list_id}" ${l.name === 'Gelesene Bücher' ? 'selected' : ''}>${l.name}</option>`).join('');
-        filterSelect.onchange = async () => {
+        filterSelect.addEventListener('change', async () => {
             const books = await fetchBooks(filterSelect.value);
             renderBooksTable(rootElement, books);
-        };
+        }, { signal: abortController.signal });
     }
 
     // Initial load with filter if available
@@ -32,6 +34,7 @@ export async function mount(rootElement) {
 }
 
 export function unmount(rootElement) {
+    abortController.abort();
     rootElement.removeEventListener('click', handleTableClick);
     rootElement.removeEventListener('click', handleBookActions);
     bookEditor.unmount();
@@ -317,3 +320,7 @@ function handleBookActions(event) {
         deleteSelectedBook(rootElement);
     }
 }
+
+// Bound events:
+// - click on root (delegation)
+// - change on select#booklistFilter

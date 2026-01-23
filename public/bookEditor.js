@@ -89,6 +89,10 @@ async function renderEditor(root, options, bookId = null) {
         }
     }
 
+    // Bound events:
+    // - click on add/remove author buttons
+    // - click on confirm/cancel buttons
+
     addAuthorBtn.addEventListener('click', addAuthor);
     removeAuthorBtn.addEventListener('click', removeAuthor);
     confirmBtn.addEventListener('click', confirm);

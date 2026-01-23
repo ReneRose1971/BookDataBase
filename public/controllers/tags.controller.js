@@ -253,3 +253,7 @@ function isDuplicateName(name, excludeTagId = null) {
         return tag.name.trim().toLowerCase() === normalized;
     });
 }
+
+// Bound events:
+// - click on root (delegation)
+// - row selection via enableSingleRowSelection
