@@ -117,6 +117,7 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
 
         let assignedAuthors = [];
         let selectedInDialogId = null;
+        let authorsById = new Map();
         const removedAuthorIds = new Set();
 
         // Load baseline data
@@ -127,10 +128,20 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
         const allAuthors = await authorsRes.json();
         const listsData = await listsRes.json();
         const bookLists = listsData.items || [];
+        const getAuthorId = (author) => author.author_id ?? author.id ?? author.authorId ?? author.AuthorId;
+        authorsById = new Map(
+            allAuthors
+                .map((author) => [getAuthorId(author), author])
+                .filter(([id]) => id !== undefined && id !== null)
+                .map(([id, author]) => [String(id), author])
+        );
 
         authorSelect.innerHTML = [
             '<option value="">Bitte auswählen</option>',
-            ...allAuthors.map(a => `<option value="${a.author_id}">${a.first_name} ${a.last_name}</option>`)
+            ...allAuthors.map(a => {
+                const authorId = getAuthorId(a);
+                return `<option value="${authorId}">${a.first_name} ${a.last_name}</option>`;
+            })
         ].join('');
         listsGrid.innerHTML = bookLists.map(list => `
             <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 0;">
@@ -147,7 +158,7 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
             if (bookId) {
                 removedAuthorIds.add(authorId);
             }
-            assignedAuthors = assignedAuthors.filter(a => a.author_id !== authorId);
+            assignedAuthors = assignedAuthors.filter(a => String(getAuthorId(a)) !== String(authorId));
             selectedInDialogId = null;
             renderDialogAuthors();
             updateRemoveBtnState();
@@ -155,7 +166,7 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
 
         const renderDialogAuthors = () => {
             assignedTableBody.innerHTML = assignedAuthors.map(a => `
-                <tr data-id="${a.author_id}" class="${selectedInDialogId === a.author_id ? 'selected' : ''}">
+                <tr data-author-id="${getAuthorId(a)}" class="${selectedInDialogId === String(getAuthorId(a)) ? 'selected' : ''}">
                     <td>${a.first_name}</td>
                     <td>${a.last_name}</td>
                 </tr>
@@ -163,7 +174,7 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
 
             assignedTableBody.querySelectorAll('tr').forEach(row => {
                 row.onclick = () => {
-                    const id = parseInt(row.dataset.id);
+                    const id = row.dataset.authorId;
                     selectedInDialogId = (selectedInDialogId === id) ? null : id;
                     renderDialogAuthors();
                     updateRemoveBtnState();
@@ -187,21 +198,18 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
         }
 
         addAuthorBtn.addEventListener('click', () => {
-            if (authorSelect.value === '') {
+            const selectedId = String(authorSelect.value).trim();
+            if (selectedId === '') {
                 alert('Bitte einen Autor auswählen.');
                 return;
             }
-            const authorId = Number(authorSelect.value);
-            if (!Number.isInteger(authorId)) {
-                alert('Bitte einen gültigen Autor auswählen.');
-                return;
-            }
-            const author = allAuthors.find(a => a.author_id === authorId);
+            const author = authorsById.get(selectedId);
             if (!author) {
                 alert('Ausgewählter Autor nicht gefunden.');
                 return;
             }
-            if (author && !assignedAuthors.find(a => a.author_id === authorId)) {
+            const alreadyAssigned = assignedAuthors.some(a => String(getAuthorId(a)) === selectedId);
+            if (!alreadyAssigned) {
                 assignedAuthors.push(author);
                 renderDialogAuthors();
                 updateRemoveBtnState();
