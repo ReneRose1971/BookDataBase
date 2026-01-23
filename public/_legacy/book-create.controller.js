@@ -1,3 +1,6 @@
+// LEGACY: unused
+// This file is no longer referenced in the project.
+
 import { loadAndRenderBookLists } from './books.controller.js';
 
 export function mount(rootElement) {
