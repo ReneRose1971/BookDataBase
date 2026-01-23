@@ -556,7 +556,7 @@ app.get('/api/books/check-duplicate', async (req, res) => {
             JOIN book_authors ba ON b.book_id = ba.book_id
             WHERE LOWER(b.title) = LOWER($1)
             GROUP BY b.book_id
-            HAVING ARRAY_AGG(ba.author_id ORDER BY ba.author_id) = ARRAY(SELECT unnest($2::int[]) ORDER BY 1);
+            HAVING ARRAY_AGG(ba.author_id::bigint ORDER BY ba.author_id) = ARRAY(SELECT unnest($2::bigint[]) ORDER BY 1);
         `;
         const result = await pool.query(query, [title.trim(), ids]);
         if (result.rowCount > 0) {
