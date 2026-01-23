@@ -123,9 +123,14 @@ async function renderEditor(rootElement, firstNameValue, lastNameValue) {
     const slot = rootElement.querySelector('.author-editor-slot');
     if (!slot) return;
     clearEditor(rootElement);
-    const viewPath = editorMode === 'edit'
-        ? '/views/author-edit.view.html'
-        : '/views/author-create.view.html';
+
+    // Legacy views (to be removed)
+    // const viewPath = editorMode === 'edit'
+    //     ? '/views/author-edit.view.html'
+    //     : '/views/author-create.view.html';
+
+    const viewPath = '/views/author-editor.view.html'; // Unified editor view
+
     try {
         await loadFragment(slot, viewPath);
     } catch (error) {
