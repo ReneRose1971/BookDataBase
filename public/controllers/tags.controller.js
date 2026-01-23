@@ -1,3 +1,5 @@
+import { loadFragment } from '../view-loader.js';
+
 let selectedTagId = null;
 let editorMode = 'create';
 let cachedTags = [];
@@ -56,7 +58,6 @@ function handleTableClick(event) {
 }
 
 async function setEditorMode(rootElement, mode) {
-    editorMode = mode;
     if (mode === 'edit') {
         if (!selectedTagId) {
             alert('Bitte Tag auswählen.');
@@ -67,16 +68,23 @@ async function setEditorMode(rootElement, mode) {
             alert('Ausgewähltes Tag nicht gefunden.');
             return;
         }
+        editorMode = mode;
         await renderEditor(rootElement, selectedTag.name);
     } else {
+        editorMode = mode;
         await renderEditor(rootElement, '');
     }
 }
 
 function removeEditor(rootElement) {
-    const editor = rootElement.querySelector('.tag-name-editor');
-    if (editor) {
-        editor.remove();
+    clearEditor(rootElement);
+    editorMode = 'create';
+}
+
+function clearEditor(rootElement) {
+    const slot = rootElement.querySelector('.tag-editor-slot');
+    if (slot) {
+        slot.innerHTML = '';
     }
 }
 
@@ -197,13 +205,14 @@ async function deleteSelectedTag() {
 async function renderEditor(rootElement, value) {
     const slot = rootElement.querySelector('.tag-editor-slot');
     if (!slot) return;
-    removeEditor(rootElement);
-    const response = await fetch('/views/tag-name-editor.view.html');
-    if (!response.ok) {
+    clearEditor(rootElement);
+    try {
+        await loadFragment(slot, '/views/tag-name-editor.view.html');
+    } catch (error) {
+        console.error(error);
         alert('Tag-Editor konnte nicht geladen werden.');
         return;
     }
-    slot.innerHTML = await response.text();
     const input = rootElement.querySelector('#tagNameEditorInput');
     if (input) {
         input.value = value;
