@@ -40,6 +40,15 @@ function renderTagsTable(rootElement, tags) {
             <td>${tag.book_count || 0}</td>
         </tr>
     `).join('');
+
+    if (selectedTagId) {
+        const selectedRow = tbody.querySelector(`tr[data-tag-id="${selectedTagId}"]`);
+        if (selectedRow) {
+            selectedRow.classList.add('selected');
+        } else {
+            selectedTagId = null;
+        }
+    }
 }
 
 function handleTableClick(event) {
@@ -53,6 +62,7 @@ function handleTableClick(event) {
 
 async function openCreateTagDialog() {
     try {
+        document.querySelectorAll('body > dialog').forEach(dialog => dialog.remove());
         const response = await fetch('/views/tag-create.dialog.view.html');
         const dialogHTML = await response.text();
         const tempDiv = document.createElement('div');
@@ -64,12 +74,12 @@ async function openCreateTagDialog() {
         const cancelBtn = dialog.querySelector('button[value="cancel"]');
         const nameInput = dialog.querySelector('#tagName');
 
+        dialog.addEventListener('close', () => dialog.remove());
         dialog.showModal();
 
         cancelBtn.onclick = (e) => {
             e.preventDefault();
             dialog.close();
-            dialog.remove();
         };
 
         confirmBtn.onclick = async (e) => {
@@ -87,7 +97,6 @@ async function openCreateTagDialog() {
                     const tags = await fetchTags();
                     renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
                     dialog.close();
-                    dialog.remove();
                 } else {
                     const err = await res.json();
                     alert(err.error);
@@ -108,8 +117,12 @@ async function openEditTagDialog() {
         const tagRes = await fetch('/api/tags');
         const tags = await tagRes.json();
         const tag = tags.find(t => t.tag_id === selectedTagId);
-        if (!tag) return;
+        if (!tag) {
+            selectedTagId = null;
+            return alert('Tag nicht gefunden.');
+        }
 
+        document.querySelectorAll('body > dialog').forEach(dialog => dialog.remove());
         const response = await fetch('/views/tag-edit.dialog.view.html');
         const dialogHTML = await response.text();
         const tempDiv = document.createElement('div');
@@ -122,12 +135,12 @@ async function openEditTagDialog() {
         const nameInput = dialog.querySelector('#tagName');
         nameInput.value = tag.name;
 
+        dialog.addEventListener('close', () => dialog.remove());
         dialog.showModal();
 
         cancelBtn.onclick = (e) => {
             e.preventDefault();
             dialog.close();
-            dialog.remove();
         };
 
         confirmBtn.onclick = async (e) => {
@@ -145,7 +158,6 @@ async function openEditTagDialog() {
                     const tags = await fetchTags();
                     renderTagsTable(document.querySelector('.view-wrapper-tags'), tags);
                     dialog.close();
-                    dialog.remove();
                 } else {
                     const err = await res.json();
                     alert(err.error);
