@@ -42,9 +42,30 @@ export async function loadViewAndController(viewPath, controllerPath, title) {
             headlineElement.textContent = title || '';
         }
 
+        // Create context object
+        const viewName = viewPath.split('/').pop().split('.').shift();
+        const ctx = {
+            root: contentElement,
+            viewName,
+            title,
+            navigate: (view) => {
+                const navButton = document.querySelector(`.nav-button[data-view="${view}"]`);
+                if (navButton) navButton.click();
+            }
+        };
+
         // Load and mount the controller
         const module = await import(controllerPath);
-        module.mount(contentElement);
+        try {
+            if (module.mount.length >= 1) {
+                module.mount(ctx);
+            } else {
+                module.mount(ctx.root);
+            }
+        } catch (error) {
+            console.warn('Controller mount failed with context, falling back to root:', error);
+            module.mount(ctx.root);
+        }
         currentController = module;
     } catch (error) {
         console.error('Error loading view or controller:', error);
