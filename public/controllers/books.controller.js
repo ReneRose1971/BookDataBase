@@ -178,7 +178,7 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
             updateRemoveBtnState();
             
             bookData.listIds.forEach(id => {
-                const cb = dialog.querySelector(`input[name="book_list"][value="${id}"]`);
+                const cb = editorRoot.querySelector(`input[name="book_list"][value="${id}"]`);
                 if (cb) cb.checked = true;
             });
         }
@@ -212,7 +212,7 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
             if (!title || title.length < 2) return alert('Bitte einen gültigen Titel eingeben.');
             if (assignedAuthors.length === 0) return alert('Ein Buch muss mindestens einen Autor haben.');
 
-            const checkedLists = Array.from(dialog.querySelectorAll('input[name="book_list"]:checked')).map(cb => parseInt(cb.value));
+            const checkedLists = Array.from(editorRoot.querySelectorAll('input[name="book_list"]:checked')).map(cb => parseInt(cb.value));
             if (checkedLists.length === 0) return alert('Bitte wählen Sie mindestens eine Liste aus.');
 
             const authorIds = assignedAuthors.map(a => a.author_id);
