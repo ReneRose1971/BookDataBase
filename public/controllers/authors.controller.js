@@ -1,4 +1,5 @@
 import { loadFragment } from '../view-loader.js';
+import { enableSingleRowSelection, fetchJson, confirmDanger } from '../ui-helpers.js';
 
 let selectedAuthorId = null;
 let cachedAuthors = [];
@@ -14,6 +15,10 @@ export async function mount(rootElement) {
     rootElement.addEventListener('click', handleTableClick);
     rootElement.addEventListener('click', handleAuthorActions);
     rootElement.addEventListener('click', handleEditorActions);
+
+    enableSingleRowSelection(rootElement.querySelector('tbody'), (id) => {
+        selectedAuthorId = id;
+    });
 }
 
 export function unmount(rootElement) {
@@ -186,6 +191,19 @@ async function updateAuthor(rootElement, firstName, lastName) {
     } catch (error) {
         alert(error.message);
         console.error('Error updating author:', error);
+    }
+}
+
+async function deleteAuthor() {
+    if (!selectedAuthorId) return alert('Bitte wählen Sie einen Autor aus.');
+    if (!confirmDanger('Möchten Sie diesen Autor wirklich löschen?')) return;
+
+    try {
+        await fetchJson(`/api/authors/${selectedAuthorId}`, { method: 'DELETE' });
+        console.log('Autor gelöscht');
+        // Refresh logic here
+    } catch (error) {
+        console.error('Fehler beim Löschen des Autors:', error);
     }
 }
 

@@ -1,4 +1,5 @@
 import { loadFragment } from '../view-loader.js';
+import { enableSingleRowSelection, fetchJson, confirmDanger } from '../ui-helpers.js';
 
 let selectedTagId = null;
 let editorMode = 'create';
@@ -10,6 +11,10 @@ export async function mount(rootElement) {
     removeEditor(rootElement);
 
     rootElement.addEventListener('click', handleRootActions);
+
+    enableSingleRowSelection(rootElement.querySelector('tbody'), (id) => {
+        selectedTagId = id;
+    });
 }
 
 export function unmount(rootElement) {

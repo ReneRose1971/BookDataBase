@@ -1,4 +1,5 @@
 import { loadFragment } from '../view-loader.js';
+import { enableSingleRowSelection, fetchJson, confirmDanger } from '../ui-helpers.js';
 
 let selectedListId = null;
 let cachedLists = [];
@@ -14,6 +15,10 @@ export async function mount(rootElement) {
     rootElement.addEventListener('click', handleTableClick);
     rootElement.addEventListener('click', handleListActions);
     rootElement.addEventListener('click', handleEditorActions);
+
+    enableSingleRowSelection(rootElement.querySelector('tbody'), (id) => {
+        selectedListId = id;
+    });
 }
 
 export function unmount(rootElement) {
