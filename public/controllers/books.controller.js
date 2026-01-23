@@ -1,4 +1,7 @@
+import { loadFragment } from '../view-loader.js';
+
 let selectedBookId = null;
+let editorMode = 'create';
 
 export async function mount(rootElement) {
     const filterSelect = rootElement.querySelector('#booklistFilter');
@@ -22,44 +25,14 @@ export async function mount(rootElement) {
     renderBooksTable(rootElement, books);
 
     rootElement.addEventListener('click', handleTableClick);
+    rootElement.addEventListener('click', handleBookActions);
 
-    const buttons = rootElement.querySelectorAll('.button-group button');
-    const createBtn = buttons[0];
-    const editBtn = buttons[1];
-    const deleteBtn = buttons[2];
-
-    if (createBtn) {
-        createBtn.onclick = (e) => {
-            e.preventDefault();
-            selectedBookId = null;
-            renderBooksTable(rootElement, books);
-            openBookDialog(rootElement);
-        };
-    }
-
-    if (editBtn) {
-        editBtn.onclick = (e) => {
-            e.preventDefault();
-            if (!selectedBookId) {
-                alert('Bitte ein Buch auswählen.');
-                return;
-            }
-            openBookDialog(rootElement, selectedBookId);
-        };
-    }
-
-    if (deleteBtn) {
-        deleteBtn.onclick = (e) => {
-            e.preventDefault();
-            deleteSelectedBook(rootElement);
-        };
-    }
+    removeEditor(rootElement);
 }
 
 export function unmount(rootElement) {
     rootElement.removeEventListener('click', handleTableClick);
-    const dialogs = document.querySelectorAll('body > dialog');
-    dialogs.forEach(d => d.remove());
+    rootElement.removeEventListener('click', handleBookActions);
 }
 
 async function fetchBooks(listId = null) {
@@ -77,6 +50,7 @@ async function fetchBooks(listId = null) {
 function renderBooksTable(rootElement, books) {
     const tbody = rootElement.querySelector('tbody');
     if (!tbody) return;
+    selectedBookId = null;
     tbody.innerHTML = books.map(book => `
         <tr data-book-id="${book.book_id}" class="${selectedBookId === book.book_id ? 'selected' : ''}" style="cursor: pointer;">
             <td>${book.title}</td>
@@ -104,33 +78,42 @@ async function deleteSelectedBook(rootElement) {
             selectedBookId = null;
             const books = await fetchBooks();
             renderBooksTable(rootElement, books);
+            removeEditor(rootElement);
         }
     } catch (e) {
         console.error(e);
     }
 }
 
-async function openBookDialog(rootElement, bookId = null) {
+function removeEditor(rootElement) {
+    const slot = rootElement.querySelector('.book-editor-slot');
+    if (slot) {
+        slot.innerHTML = '';
+    }
+    editorMode = 'create';
+}
+
+async function renderBookEditor(rootElement, mode, bookId = null) {
     try {
-        const response = await fetch('/views/book-create.dialog.view.html');
-        const dialogHTML = await response.text();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = dialogHTML;
-        const dialog = tempDiv.querySelector('dialog');
-        document.body.appendChild(dialog);
+        editorMode = mode;
+        const slot = rootElement.querySelector('.book-editor-slot');
+        if (!slot) return;
+        removeEditor(rootElement);
+        const viewPath = mode === 'edit'
+            ? '/views/books-edit.view.html'
+            : '/views/books-create.view.html';
+        await loadFragment(slot, viewPath);
+        const editorRoot = slot.querySelector('.book-editor');
+        if (!editorRoot) return;
 
-        if (bookId) {
-            dialog.querySelector('h1').textContent = 'Buch bearbeiten';
-        }
-
-        const titleInput = dialog.querySelector('#bookTitle');
-        const authorSelect = dialog.querySelector('#authorSelect');
-        const addAuthorBtn = dialog.querySelector('#addAuthorBtn');
-        const removeAuthorBtn = dialog.querySelector('#removeAuthorBtn');
-        const assignedTableBody = dialog.querySelector('#assignedAuthorsTable tbody');
-        const listsGrid = dialog.querySelector('.lists-checkbox-grid');
-        const confirmBtn = dialog.querySelector('button[value="confirm"]');
-        const cancelBtn = dialog.querySelector('button[value="cancel"]');
+        const titleInput = editorRoot.querySelector('#bookTitle');
+        const authorSelect = editorRoot.querySelector('#authorSelect');
+        const addAuthorBtn = editorRoot.querySelector('#addAuthorBtn');
+        const removeAuthorBtn = editorRoot.querySelector('#removeAuthorBtn');
+        const assignedTableBody = editorRoot.querySelector('#assignedAuthorsTable tbody');
+        const listsGrid = editorRoot.querySelector('.lists-checkbox-grid');
+        const confirmBtn = editorRoot.querySelector('[data-book-editor-action="confirm"]');
+        const cancelBtn = editorRoot.querySelector('[data-book-editor-action="cancel"]');
 
         let assignedAuthors = [];
         let selectedInDialogId = null;
@@ -220,8 +203,7 @@ async function openBookDialog(rootElement, bookId = null) {
 
         cancelBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            dialog.close();
-            dialog.remove();
+            removeEditor(rootElement);
         });
 
         confirmBtn.addEventListener('click', async (e) => {
@@ -257,16 +239,40 @@ async function openBookDialog(rootElement, bookId = null) {
             if (saveRes.ok) {
                 const books = await fetchBooks();
                 renderBooksTable(rootElement, books);
-                dialog.close();
-                dialog.remove();
+                removeEditor(rootElement);
             } else {
                 const err = await saveRes.json();
                 alert(err.error || 'Fehler beim Speichern.');
             }
         });
-
-        dialog.showModal();
     } catch (e) {
         console.error(e);
+    }
+}
+
+async function setEditorMode(rootElement, mode) {
+    if (mode === 'edit') {
+        if (!selectedBookId) {
+            alert('Bitte ein Buch auswählen.');
+            return;
+        }
+        await renderBookEditor(rootElement, 'edit', selectedBookId);
+    } else {
+        await renderBookEditor(rootElement, 'create');
+    }
+}
+
+function handleBookActions(event) {
+    const actionButton = event.target.closest('[data-book-action]');
+    if (!actionButton) return;
+    const rootElement = event.currentTarget;
+    if (actionButton.dataset.bookAction === 'create') {
+        setEditorMode(rootElement, 'create');
+    }
+    if (actionButton.dataset.bookAction === 'edit') {
+        setEditorMode(rootElement, 'edit');
+    }
+    if (actionButton.dataset.bookAction === 'delete') {
+        deleteSelectedBook(rootElement);
     }
 }
