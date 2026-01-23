@@ -103,12 +103,22 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
         const slot = rootElement.querySelector('.book-editor-slot');
         if (!slot) return;
         removeEditor(rootElement);
-        const viewPath = mode === 'edit'
-            ? '/views/books-edit.view.html'
-            : '/views/books-create.view.html';
+
+        // Legacy views (to be removed)
+        // const viewPath = mode === 'edit'
+        //     ? '/views/books-edit.view.html'
+        //     : '/views/books-create.view.html';
+
+        const viewPath = '/views/book-editor.view.html'; // Unified editor view
         await loadFragment(slot, viewPath);
+
         const editorRoot = slot.querySelector('.book-editor');
         if (!editorRoot) return;
+
+        const titleElement = editorRoot.querySelector('#bookEditorTitle');
+        if (titleElement) {
+            titleElement.textContent = mode === 'edit' ? 'Buch bearbeiten' : 'Neues Buch';
+        }
 
         const titleInput = editorRoot.querySelector('#bookTitle');
         const authorSelect = editorRoot.querySelector('#authorSelect');
