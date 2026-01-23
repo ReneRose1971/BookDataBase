@@ -1,4 +1,5 @@
 import { loadFragment } from '../view-loader.js';
+import * as bookEditor from '../bookEditor.js';
 
 let selectedBookId = null;
 let editorMode = 'create';
@@ -33,6 +34,7 @@ export async function mount(rootElement) {
 export function unmount(rootElement) {
     rootElement.removeEventListener('click', handleTableClick);
     rootElement.removeEventListener('click', handleBookActions);
+    bookEditor.unmount();
 }
 
 async function fetchBooks(listId = null) {
