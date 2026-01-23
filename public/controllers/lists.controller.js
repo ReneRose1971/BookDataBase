@@ -46,11 +46,12 @@ function renderListsTable(rootElement, lists) {
 
     // Clear existing rows
     tbody.innerHTML = '';
+    selectedListId = null;
 
     // Populate table with lists
     lists.forEach(list => {
         const row = document.createElement('tr');
-        row.dataset.bookListId = list.book_list_id;
+        row.dataset.bookListId = String(list.book_list_id);
         row.innerHTML = `
             <td>${list.name}</td>
             <td>${list.is_standard ? 'Ja' : 'Nein'}</td>
@@ -80,7 +81,7 @@ async function setEditorMode(rootElement, mode) {
             alert('Keine Liste ausgewählt.');
             return;
         }
-        const selectedList = cachedLists.find((list) => list.book_list_id === selectedListId);
+        const selectedList = cachedLists.find((list) => Number(list.book_list_id) === selectedListId);
         if (!selectedList) {
             alert('Ausgewählte Liste nicht gefunden.');
             return;
@@ -153,6 +154,11 @@ async function deleteSelectedList(rootElement) {
             throw new Error('Failed to fetch list details');
         }
         const list = await response.json();
+
+        if (Number(list.item.book_list_id) !== selectedListId) {
+            alert('Ausgewählte Liste nicht gefunden.');
+            return;
+        }
 
         if (list.item.is_standard) {
             alert('Standardlisten können nicht gelöscht werden.');
