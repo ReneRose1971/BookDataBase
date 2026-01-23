@@ -1,56 +1,26 @@
+import { loadFragment } from '../view-loader.js';
+
 let selectedAuthorId = null;
+let cachedAuthors = [];
+let editorMode = 'create';
 
 export async function mount(rootElement) {
     // Fetch and render authors
-    const authors = await fetchAuthors();
-    renderAuthorsTable(rootElement, authors);
+    cachedAuthors = await fetchAuthors();
+    renderAuthorsTable(rootElement, cachedAuthors);
+    removeEditor(rootElement);
 
     // Bind click events for table rows
     rootElement.addEventListener('click', handleTableClick);
-
-    // Bind click events for buttons
-    const createButton = rootElement.querySelector('.button-group button:nth-child(1)');
-    const editButton = rootElement.querySelector('.button-group button:nth-child(2)');
-    const deleteButton = rootElement.querySelector('.button-group button:nth-child(3)');
-
-    if (createButton) {
-        createButton.addEventListener('click', openCreateAuthorDialog);
-    }
-
-    if (editButton) {
-        editButton.addEventListener('click', openEditAuthorDialog);
-    }
-
-    if (deleteButton) {
-        deleteButton.addEventListener('click', deleteSelectedAuthor);
-    }
+    rootElement.addEventListener('click', handleAuthorActions);
+    rootElement.addEventListener('click', handleEditorActions);
 }
 
 export function unmount(rootElement) {
     // Clean up events and other resources
     rootElement.removeEventListener('click', handleTableClick);
-
-    // Unbind click events for buttons
-    const createButton = rootElement.querySelector('.button-group button:nth-child(1)');
-    const editButton = rootElement.querySelector('.button-group button:nth-child(2)');
-    const deleteButton = rootElement.querySelector('.button-group button:nth-child(3)');
-
-    if (createButton) {
-        createButton.removeEventListener('click', openCreateAuthorDialog);
-    }
-
-    if (editButton) {
-        editButton.removeEventListener('click', openEditAuthorDialog);
-    }
-
-    if (deleteButton) {
-        deleteButton.removeEventListener('click', deleteSelectedAuthor);
-    }
-
-    const dialog = rootElement.querySelector('dialog');
-    if (dialog) {
-        dialog.remove();
-    }
+    rootElement.removeEventListener('click', handleAuthorActions);
+    rootElement.removeEventListener('click', handleEditorActions);
 }
 
 async function fetchAuthors() {
@@ -77,11 +47,12 @@ function renderAuthorsTable(rootElement, authors) {
 
     // Clear existing rows
     tbody.innerHTML = '';
+    selectedAuthorId = null;
 
     // Populate table with authors
     authors.forEach(author => {
         const row = document.createElement('tr');
-        row.dataset.authorId = author.author_id;
+        row.dataset.authorId = String(author.author_id);
         row.innerHTML = `
             <td>${author.last_name}</td>
             <td>${author.first_name}</td>
@@ -89,16 +60,12 @@ function renderAuthorsTable(rootElement, authors) {
         `;
         tbody.appendChild(row);
     });
-
-    // Debugging log to confirm author_id values in table rows
-    console.log('Table row author IDs:', Array.from(rootElement.querySelectorAll('tr')).map(row => row.dataset.authorId));
 }
 
 function handleTableClick(event) {
     const row = event.target.closest('tr');
     if (row && row.dataset.authorId) {
         selectedAuthorId = parseInt(row.dataset.authorId, 10);
-        console.log(`Selected author ID: ${selectedAuthorId}`);
 
         // Remove 'selected' class from all rows
         const rows = event.currentTarget.querySelectorAll('tr');
@@ -109,228 +76,111 @@ function handleTableClick(event) {
     }
 }
 
-export async function openCreateAuthorDialog() {
-    try {
-        // 1. Dialog-HTML per fetch() laden
-        const response = await fetch('/views/author-create.dialog.view.html');
-        if (!response.ok) {
-            throw new Error('Failed to load dialog HTML');
-        }
-        const dialogHTML = await response.text();
-
-        // 2. In document.body einfügen
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = dialogHTML;
-        const dialog = tempDiv.querySelector('dialog');
-        if (!dialog) {
-            throw new Error('Dialog element not found in loaded HTML');
-        }
-        document.body.appendChild(dialog);
-
-        // Ensure the cancel button explicitly closes the dialog
-        const cancelButton = dialog.querySelector('#cancelButton');
-        if (cancelButton) {
-            cancelButton.addEventListener('click', () => {
-                dialog.close('cancel');
-                dialog.remove();
-                console.log('Dialog geschlossen und entfernt');
-            });
-        }
-
-        // Ensure returnValue is set for the cancel button
-        cancelButton.addEventListener('click', () => {
-            dialog.returnValue = 'cancel';
-        });
-
-        // Debugging logs to verify dialog behavior
-        console.log('Dialog initialized and shown');
-        dialog.addEventListener('close', () => {
-            console.log('Dialog closed with returnValue:', dialog.returnValue);
-        });
-
-        // 3. dialog.showModal() aufrufen
-        dialog.showModal();
-
-        // 4. Auf dialog.close warten
-        await new Promise(resolve => {
-            dialog.addEventListener('close', resolve, { once: true });
-        });
-
-        // 5. Wenn returnValue !== "confirm": Dialog entfernen, Ende
-        if (dialog.returnValue !== 'confirm') {
-            dialog.remove();
+async function setEditorMode(rootElement, mode) {
+    if (mode === 'edit') {
+        if (!selectedAuthorId) {
+            alert('Bitte zuerst einen Autor auswählen.');
             return;
         }
-
-        // 6. Werte lesen, trimmen, validieren
-        const firstName = dialog.querySelector('#firstName')?.value.trim();
-        const lastName = dialog.querySelector('#lastName')?.value.trim();
-        
-        if (!firstName || !lastName) {
-            alert('Vorname und Nachname sind erforderlich.');
-            dialog.remove();
+        const selectedAuthor = cachedAuthors.find((author) => Number(author.author_id) === selectedAuthorId);
+        if (!selectedAuthor) {
+            alert('Ausgewählter Autor nicht gefunden.');
             return;
         }
-
-        // 7. POST /api/authors
-        try {
-            const response = await fetch('/api/authors', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ firstName, lastName })
-            });
-
-            if (response.status === 409) {
-                alert('Autor existiert bereits.');
-                dialog.remove();
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error('Failed to create author');
-            }
-
-            // 8. Erfolg: Dialog schließen & entfernen, Autorenliste neu laden
-            dialog.remove();
-            const authors = await fetchAuthors();
-            const authorsTable = document.querySelector('table');
-            if (authorsTable) {
-                renderAuthorsTable(authorsTable, authors);
-            }
-        } catch (error) {
-            console.error('Error creating author:', error);
-            alert('Fehler beim Erstellen des Autors.');
-            dialog.remove();
-        }
-    } catch (error) {
-        console.error('Error handling create author dialog:', error);
+        editorMode = mode;
+        await renderEditor(rootElement, selectedAuthor.first_name, selectedAuthor.last_name);
+    } else {
+        editorMode = mode;
+        await renderEditor(rootElement, '', '');
     }
 }
 
-export async function openEditAuthorDialog() {
-    if (!selectedAuthorId) {
-        alert('Kein Autor ausgewählt.');
+function removeEditor(rootElement) {
+    clearEditor(rootElement);
+    editorMode = 'create';
+}
+
+function clearEditor(rootElement) {
+    const slot = rootElement.querySelector('.author-editor-slot');
+    if (slot) {
+        slot.innerHTML = '';
+    }
+}
+
+function isDuplicateAuthor(firstName, lastName, excludeAuthorId = null) {
+    const normalizedFirst = firstName.trim().toLowerCase();
+    const normalizedLast = lastName.trim().toLowerCase();
+    return cachedAuthors.some((author) => {
+        if (excludeAuthorId && Number(author.author_id) === excludeAuthorId) {
+            return false;
+        }
+        return author.first_name.trim().toLowerCase() === normalizedFirst
+            && author.last_name.trim().toLowerCase() === normalizedLast;
+    });
+}
+
+async function renderEditor(rootElement, firstNameValue, lastNameValue) {
+    const slot = rootElement.querySelector('.author-editor-slot');
+    if (!slot) return;
+    clearEditor(rootElement);
+    const viewPath = editorMode === 'edit'
+        ? '/views/author-edit.view.html'
+        : '/views/author-create.view.html';
+    try {
+        await loadFragment(slot, viewPath);
+    } catch (error) {
+        console.error(error);
+        alert('Autor-Editor konnte nicht geladen werden.');
         return;
     }
+    const firstNameInput = rootElement.querySelector('#authorFirstNameInput');
+    const lastNameInput = rootElement.querySelector('#authorLastNameInput');
+    if (firstNameInput) firstNameInput.value = firstNameValue;
+    if (lastNameInput) lastNameInput.value = lastNameValue;
+    if (lastNameInput) lastNameInput.focus();
+}
 
+async function createAuthor(rootElement, firstName, lastName) {
     try {
-        console.log('Fetching author data for ID:', selectedAuthorId);
-
-        const response = await fetch(`/api/authors/${selectedAuthorId}`);
-        if (!response.ok) {
-            if (response.status === 404) {
-                alert('Autor nicht gefunden. Bitte wählen Sie einen gültigen Autor aus.');
-            } else {
-                alert('Fehler beim Abrufen der Autorendaten.');
-            }
-            return;
-        }
-
-        const author = await response.json();
-        console.log('First author keys:', Object.keys(author));
-
-        // Open dialog and populate fields
-        const dialogResponse = await fetch('/views/author-edit.dialog.view.html');
-        if (!dialogResponse.ok) {
-            throw new Error('Failed to load dialog HTML');
-        }
-        const dialogHTML = await dialogResponse.text();
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = dialogHTML;
-        const dialog = tempDiv.querySelector('dialog');
-        if (!dialog) {
-            throw new Error('Dialog element not found in loaded HTML');
-        }
-        document.body.appendChild(dialog);
-
-        const firstNameInput = dialog.querySelector('#firstName');
-        const lastNameInput = dialog.querySelector('#lastName');
-        if (firstNameInput && lastNameInput) {
-            firstNameInput.value = author.first_name;
-            lastNameInput.value = author.last_name;
-        }
-
-        // Set authorId as dataset attribute of the dialog
-        dialog.dataset.authorId = selectedAuthorId;
-
-        // Cancel button logic
-        const cancelButton = dialog.querySelector('#cancelButton');
-        if (cancelButton) {
-            cancelButton.addEventListener('click', () => {
-                dialog.close('cancel');
-            });
-        }
-
-        // Confirm button logic
-        const confirmButton = dialog.querySelector('[value="confirm"]');
-        if (confirmButton) {
-            confirmButton.addEventListener('click', async () => {
-                const authorId = dialog.dataset.authorId;
-                const formData = new FormData(dialog.querySelector('form'));
-                const payload = Object.fromEntries(formData.entries());
-
-                console.log('Author ID:', authorId);
-                console.log('Payload:', payload);
-
-                try {
-                    const response = await fetch(`/api/authors/${authorId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload),
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to update author');
-                    }
-
-                    dialog.close('confirm');
-
-                    // Reload authors table
-                    const authors = await fetchAuthors();
-                    const authorsTable = document.querySelector('table');
-                    renderAuthorsTable(authorsTable, authors);
-                } catch (error) {
-                    console.error('Error updating author:', error);
-                }
-            });
-        }
-
-        dialog.showModal();
-
-        await new Promise(resolve => {
-            dialog.addEventListener('close', resolve, { once: true });
+        const response = await fetch('/api/authors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ firstName, lastName })
         });
 
-        if (dialog.returnValue !== 'confirm') {
-            dialog.remove();
-            return;
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create author');
         }
 
-        const updatedFirstName = firstNameInput.value.trim();
-        const updatedLastName = lastNameInput.value.trim();
-        if (!updatedFirstName || !updatedLastName) {
-            alert('Vorname und Nachname sind erforderlich.');
-            dialog.remove();
-            return;
-        }
+        cachedAuthors = await fetchAuthors();
+        renderAuthorsTable(rootElement, cachedAuthors);
+        removeEditor(rootElement);
+    } catch (error) {
+        alert(error.message);
+        console.error('Error creating author:', error);
+    }
+}
 
-        const updateResponse = await fetch(`/api/authors/${selectedAuthorId}`, {
+async function updateAuthor(rootElement, firstName, lastName) {
+    try {
+        const response = await fetch(`/api/authors/${selectedAuthorId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ firstName: updatedFirstName, lastName: updatedLastName })
+            body: JSON.stringify({ firstName, lastName })
         });
 
-        console.log('Selected author ID:', selectedAuthorId);
-        console.log('Server response:', updateResponse);
-
-        if (!updateResponse.ok) {
-            alert('Fehler beim Aktualisieren des Autors.');
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update author');
         }
 
-        dialog.remove();
+        cachedAuthors = await fetchAuthors();
+        renderAuthorsTable(rootElement, cachedAuthors);
+        removeEditor(rootElement);
     } catch (error) {
-        console.error('Error handling edit author dialog:', error);
+        alert(error.message);
+        console.error('Error updating author:', error);
     }
 }
 
@@ -344,8 +194,6 @@ export async function deleteSelectedAuthor() {
     if (!confirmDelete) {
         return;
     }
-
-    console.log('Deleting author with ID:', selectedAuthorId);
 
     try {
         const response = await fetch(`/api/authors/${selectedAuthorId}`, {
@@ -364,20 +212,77 @@ export async function deleteSelectedAuthor() {
 
         // Erfolg: Autorenliste neu laden und Auswahl zurücksetzen
         selectedAuthorId = null;
-        const authors = await fetchAuthors();
-        
-        // Find the current view container (where the table is actually located)
+        cachedAuthors = await fetchAuthors();
         const currentView = document.querySelector('.view-wrapper-authors');
         if (currentView) {
-            renderAuthorsTable(currentView, authors);
-        } else {
-            console.error('Authors view container not found');
-            // Fallback: try to find any table and render
-            const anyTable = document.querySelector('table');
-            if (anyTable) renderAuthorsTable(anyTable.closest('div'), authors);
+            renderAuthorsTable(currentView, cachedAuthors);
+            removeEditor(currentView);
         }
     } catch (error) {
         console.error('Error deleting author:', error);
         alert('Fehler beim Löschen des Autors.');
+    }
+}
+
+function handleAuthorActions(event) {
+    const actionButton = event.target.closest('[data-author-action]');
+    if (!actionButton) return;
+    const rootElement = event.currentTarget;
+    if (actionButton.dataset.authorAction === 'create') {
+        setEditorMode(rootElement, 'create');
+    }
+    if (actionButton.dataset.authorAction === 'edit') {
+        setEditorMode(rootElement, 'edit');
+    }
+    if (actionButton.dataset.authorAction === 'delete') {
+        deleteSelectedAuthor();
+    }
+}
+
+async function handleConfirm(event, rootElement) {
+    event.preventDefault();
+    const firstNameInput = rootElement.querySelector('#authorFirstNameInput');
+    const lastNameInput = rootElement.querySelector('#authorLastNameInput');
+    if (!lastNameInput) return;
+    const firstName = firstNameInput ? firstNameInput.value.trim() : '';
+    const lastName = lastNameInput.value.trim();
+    if (!lastName) {
+        alert('Name ist erforderlich.');
+        return;
+    }
+
+    if (editorMode === 'edit') {
+        if (!selectedAuthorId) {
+            alert('Bitte zuerst einen Autor auswählen.');
+            return;
+        }
+        if (isDuplicateAuthor(firstName, lastName, selectedAuthorId)) {
+            alert('Autor existiert bereits.');
+            return;
+        }
+        await updateAuthor(rootElement, firstName, lastName);
+    } else {
+        if (isDuplicateAuthor(firstName, lastName)) {
+            alert('Autor existiert bereits.');
+            return;
+        }
+        await createAuthor(rootElement, firstName, lastName);
+    }
+}
+
+function handleCancel(event, rootElement) {
+    event.preventDefault();
+    removeEditor(rootElement);
+}
+
+function handleEditorActions(event) {
+    const actionButton = event.target.closest('[data-author-editor-action]');
+    if (!actionButton) return;
+    const rootElement = event.currentTarget;
+    if (actionButton.dataset.authorEditorAction === 'confirm') {
+        handleConfirm(event, rootElement);
+    }
+    if (actionButton.dataset.authorEditorAction === 'cancel') {
+        handleCancel(event, rootElement);
     }
 }
