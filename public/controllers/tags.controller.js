@@ -63,11 +63,19 @@ function handleTableClick(event) {
 async function openCreateTagDialog() {
     try {
         document.querySelectorAll('body > dialog').forEach(dialog => dialog.remove());
-        const response = await fetch('/views/tag-create.dialog.view.html');
-        const dialogHTML = await response.text();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = dialogHTML;
-        const dialog = tempDiv.querySelector('dialog');
+        const dialog = document.createElement('dialog');
+        dialog.innerHTML = `
+            <form method="dialog">
+                <h1>Neues Tag</h1>
+                <label for="tagName">Name:</label>
+                <input type="text" id="tagName" name="name" required>
+
+                <menu>
+                    <button type="button" value="cancel" class="func-button">Abbrechen</button>
+                    <button value="confirm" class="func-button">Bestätigen</button>
+                </menu>
+            </form>
+        `;
         document.body.appendChild(dialog);
 
         const confirmBtn = dialog.querySelector('button[value="confirm"]');
@@ -123,11 +131,19 @@ async function openEditTagDialog() {
         }
 
         document.querySelectorAll('body > dialog').forEach(dialog => dialog.remove());
-        const response = await fetch('/views/tag-edit.dialog.view.html');
-        const dialogHTML = await response.text();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = dialogHTML;
-        const dialog = tempDiv.querySelector('dialog');
+        const dialog = document.createElement('dialog');
+        dialog.innerHTML = `
+            <form method="dialog">
+                <h1>Tag bearbeiten</h1>
+                <label for="tagName">Name:</label>
+                <input type="text" id="tagName" name="name" required>
+
+                <menu>
+                    <button type="button" value="cancel" class="func-button">Abbrechen</button>
+                    <button value="confirm" class="func-button">Bestätigen</button>
+                </menu>
+            </form>
+        `;
         document.body.appendChild(dialog);
 
         const confirmBtn = dialog.querySelector('button[value="confirm"]');
