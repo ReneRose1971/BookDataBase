@@ -9,22 +9,11 @@ export async function mount(rootElement) {
     renderTagsTable(rootElement, cachedTags);
     removeEditor(rootElement);
 
-    rootElement.addEventListener('click', handleTableClick);
-
-    const createBtn = rootElement.querySelector('.button-group button:nth-child(1)');
-    const editBtn = rootElement.querySelector('.button-group button:nth-child(2)');
-    const deleteBtn = rootElement.querySelector('.button-group button:nth-child(3)');
-
-    if (createBtn) createBtn.addEventListener('click', () => setEditorMode(rootElement, 'create'));
-    if (editBtn) editBtn.addEventListener('click', () => setEditorMode(rootElement, 'edit'));
-    if (deleteBtn) deleteBtn.addEventListener('click', deleteSelectedTag);
-
-    rootElement.addEventListener('click', handleEditorActions);
+    rootElement.addEventListener('click', handleRootActions);
 }
 
 export function unmount(rootElement) {
-    rootElement.removeEventListener('click', handleTableClick);
-    rootElement.removeEventListener('click', handleEditorActions);
+    rootElement.removeEventListener('click', handleRootActions);
 }
 
 async function fetchTags() {
@@ -49,11 +38,50 @@ function renderTagsTable(rootElement, tags) {
     `).join('');
 }
 
+function handleRootActions(event) {
+    const actionButton = event.target.closest('[data-tag-action], [data-tag-editor-action]');
+    if (!actionButton) return;
+
+    const rootElement = event.currentTarget;
+
+    if (actionButton.dataset.tagAction) {
+        handleTagActions(actionButton.dataset.tagAction, rootElement);
+    } else if (actionButton.dataset.tagEditorAction) {
+        handleEditorActions(actionButton.dataset.tagEditorAction, rootElement);
+    }
+}
+
+function handleTagActions(action, rootElement) {
+    switch (action) {
+        case 'create':
+            setEditorMode(rootElement, 'create');
+            break;
+        case 'edit':
+            setEditorMode(rootElement, 'edit');
+            break;
+        case 'delete':
+            deleteSelectedTag(rootElement);
+            break;
+    }
+}
+
+function handleEditorActions(action, rootElement) {
+    switch (action) {
+        case 'confirm':
+            handleConfirm(rootElement);
+            break;
+        case 'cancel':
+            handleCancel(rootElement);
+            break;
+    }
+}
+
 function handleTableClick(event) {
     const row = event.target.closest('tr');
     if (row && row.dataset.tagId) {
         selectedTagId = parseInt(row.dataset.tagId, 10);
-        event.currentTarget.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+        const rows = event.currentTarget.querySelectorAll('tr');
+        rows.forEach(r => r.classList.remove('selected'));
         row.classList.add('selected');
     }
 }
@@ -64,7 +92,7 @@ async function setEditorMode(rootElement, mode) {
             alert('Bitte Tag auswählen.');
             return;
         }
-        const selectedTag = cachedTags.find((tag) => Number(tag.tag_id) === selectedTagId);
+        const selectedTag = cachedTags.find(tag => tag.tag_id === selectedTagId);
         if (!selectedTag) {
             alert('Ausgewähltes Tag nicht gefunden.');
             return;
@@ -89,18 +117,57 @@ function clearEditor(rootElement) {
     }
 }
 
-function isDuplicateName(name, excludeTagId = null) {
-    const normalized = name.trim().toLowerCase();
-    return cachedTags.some((tag) => {
-        if (excludeTagId && tag.tag_id === excludeTagId) {
-            return false;
-        }
-        return tag.name.trim().toLowerCase() === normalized;
-    });
+async function renderEditor(rootElement, value) {
+    const slot = rootElement.querySelector('.tag-editor-slot');
+    if (!slot) return;
+    clearEditor(rootElement);
+    try {
+        await loadFragment(slot, '/views/tag-name-editor.view.html');
+    } catch (error) {
+        console.error(error);
+        alert('Tag-Editor konnte nicht geladen werden.');
+        return;
+    }
+    const input = rootElement.querySelector('#tagNameEditorInput');
+    if (input) {
+        input.value = value;
+        input.focus();
+    }
 }
 
-async function handleConfirm(event, rootElement) {
-    event.preventDefault();
+async function deleteSelectedTag(rootElement) {
+    if (!selectedTagId) {
+        alert('Bitte Tag auswählen.');
+        return;
+    }
+    const selectedTag = cachedTags.find(tag => tag.tag_id === selectedTagId);
+    if (!selectedTag) {
+        alert('Ausgewähltes Tag nicht gefunden.');
+        return;
+    }
+    if (selectedTag.book_count > 0) {
+        const removeRelations = confirm('Dieses Tag ist mit Büchern verknüpft. Verknüpfungen entfernen und Tag löschen?');
+        if (!removeRelations) return;
+    } else if (!confirm('Tag wirklich löschen?')) {
+        return;
+    }
+    try {
+        const res = await fetch(`/api/tags/${selectedTagId}`, { method: 'DELETE' });
+        if (res.ok) {
+            selectedTagId = null;
+            cachedTags = await fetchTags();
+            renderTagsTable(rootElement, cachedTags);
+            removeEditor(rootElement);
+        } else {
+            const err = await res.json();
+            alert(err.error);
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function handleConfirm(rootElement) {
     const input = rootElement.querySelector('#tagNameEditorInput');
     if (!input) return;
     const name = input.value.trim();
@@ -128,8 +195,7 @@ async function handleConfirm(event, rootElement) {
     }
 }
 
-function handleCancel(event, rootElement) {
-    event.preventDefault();
+function handleCancel(rootElement) {
     removeEditor(rootElement);
 }
 
@@ -173,62 +239,12 @@ async function updateTag(rootElement, name) {
     }
 }
 
-async function deleteSelectedTag() {
-    if (!selectedTagId) return alert('Bitte Tag auswählen.');
-    const rootElement = document.querySelector('.view-wrapper-tags');
-    const selectedTag = cachedTags.find((tag) => Number(tag.tag_id) === selectedTagId);
-    if (!selectedTag) {
-        alert('Ausgewähltes Tag nicht gefunden.');
-        return;
-    }
-    if (selectedTag.book_count > 0) {
-        const removeRelations = confirm('Dieses Tag ist mit Büchern verknüpft. Verknüpfungen entfernen und Tag löschen?');
-        if (!removeRelations) return;
-    } else if (!confirm('Tag wirklich löschen?')) {
-        return;
-    }
-    try {
-        const res = await fetch(`/api/tags/${selectedTagId}`, { method: 'DELETE' });
-        if (res.ok) {
-            selectedTagId = null;
-            cachedTags = await fetchTags();
-            renderTagsTable(rootElement, cachedTags);
-            removeEditor(rootElement);
-        } else {
-            const err = await res.json();
-            alert(err.error);
+function isDuplicateName(name, excludeTagId = null) {
+    const normalized = name.trim().toLowerCase();
+    return cachedTags.some(tag => {
+        if (excludeTagId && tag.tag_id === excludeTagId) {
+            return false;
         }
-    } catch (e) {
-        console.error(e);
-    }
-}
-
-async function renderEditor(rootElement, value) {
-    const slot = rootElement.querySelector('.tag-editor-slot');
-    if (!slot) return;
-    clearEditor(rootElement);
-    try {
-        await loadFragment(slot, '/views/tag-name-editor.view.html');
-    } catch (error) {
-        console.error(error);
-        alert('Tag-Editor konnte nicht geladen werden.');
-        return;
-    }
-    const input = rootElement.querySelector('#tagNameEditorInput');
-    if (input) {
-        input.value = value;
-        input.focus();
-    }
-}
-
-function handleEditorActions(event) {
-    const actionButton = event.target.closest('[data-tag-editor-action]');
-    if (!actionButton) return;
-    const rootElement = event.currentTarget;
-    if (actionButton.dataset.tagEditorAction === 'confirm') {
-        handleConfirm(event, rootElement);
-    }
-    if (actionButton.dataset.tagEditorAction === 'cancel') {
-        handleCancel(event, rootElement);
-    }
+        return tag.name.trim().toLowerCase() === normalized;
+    });
 }
