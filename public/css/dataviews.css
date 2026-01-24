@@ -31,8 +31,8 @@ tr.selected {
     border-radius: 12px;
     box-shadow: var(--shadow-md);
     overflow: hidden;
-    border: 1px solid #e2e8f0;
-    justify-content: flex-start; /* Ensure items start from the top */
+    border: 2px solid #ff0000; /* Red border for testing visibility */
+    justify-content: flex-start;
 }
 
 .view-wrapper > table {
