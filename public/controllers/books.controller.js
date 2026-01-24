@@ -1,5 +1,6 @@
 import { loadFragment } from '../view-loader.js';
-import * as bookEditor from '../bookEditor.js';
+
+// Book editor logic is consolidated in this controller (legacy create/edit controllers and helper removed).
 
 let selectedBookId = null;
 let editorMode = 'create';
@@ -37,7 +38,6 @@ export function unmount(rootElement) {
     abortController.abort();
     rootElement.removeEventListener('click', handleTableClick);
     rootElement.removeEventListener('click', handleBookActions);
-    bookEditor.unmount();
 }
 
 async function fetchBooks(listId = null) {
