@@ -49,7 +49,7 @@ main#content {
     border: 1px solid rgba(0, 0, 0, 0.1);
     cursor: pointer;
     background-color: var(--color-primary);
-    color: var(--color-dark); /* Darker text color as requested */
+    color: var(--color-accent); /* Updated to match nav-button */
     transition: all 0.2s ease;
     box-shadow: var(--shadow-sm);
 }
