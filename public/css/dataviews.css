@@ -1,15 +1,25 @@
 
 th, td {
-    padding: 10px;
+    padding: 1rem;
     text-align: left;
-    font-size: 0.9rem;
-    border: 1px solid #ddd;
-    color: white;
+    font-size: 0.95rem;
+    border-bottom: 1px solid #e2e8f0;
+    color: var(--color-dark);
+}
+
+th {
+    background-color: #f8fafc;
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+tr:hover {
+    background-color: #f1f5f9;
 }
 
 tr.selected {
-    background-color: #e0e0e0;
-    font-weight: bold;
+    background-color: rgba(143, 184, 179, 0.15);
+    font-weight: 600;
 }
 
 .view-wrapper {
@@ -17,35 +27,32 @@ tr.selected {
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    background: var(--color-white);
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
 }
 
 .view-wrapper > table {
-    width: 70%;
-    margin: 0 auto;
-    height: 50%;
-    display: block;
-    overflow: auto;
-    background-color: var(--color-light-gray);
-    padding:  10px;
-    table-layout: fixed; /* Fixiert die Spaltenbreiten */
-    box-sizing: border-box; /* Stellt sicher, dass Breite inkl. Padding korrekt berechnet wird */
-    margin-top: 20px;
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    background-color: var(--color-white);
+    table-layout: fixed;
 }
 
-.view-wrapper> table thead,
-.view-wrapper> table tbody {
-    display: block; /* Stellt sicher, dass Header und Body als Block behandelt werden */
+.view-wrapper > table thead,
+.view-wrapper > table tbody {
+    display: table-header-group;
 }
 
- .view-wrapper> table thead tr,
- .view-wrapper> table tbody tr {
-    display: table; /* Stellt den Tabellenlayout-Context wieder her */
-    width: 100%; /* Nutzt die volle Breite */
-    table-layout: fixed; /* Fixiert die Spaltenbreiten */
+.view-wrapper > table thead tr,
+.view-wrapper > table tbody tr {
+    display: table-row;
+    width: 100%;
 }
 
-.view-wrapper> table th,
+.view-wrapper > table th,
 .view-wrapper > table td {
-    background-color: inherit; /* Übernimmt die Hintergrundfarbe der Tabelle */
-    min-width: 0; /* Verhindert, dass min-width die Spaltenbreiten sprengt */
+    background-color: transparent;
 }

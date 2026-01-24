@@ -1,49 +1,73 @@
 .nav-group {
-    margin: 0;
-    margin-top: 0;
-    padding: 0;
+    margin: 0 0 2rem 0;
+    padding: 0 1rem;
     width: 100%;
     display: flex;
-    flex-direction: column; /* Elemente innerhalb der Gruppe untereinander */
-    gap: 10px; /* Optional: Abstand zwischen den Buttons */
+    flex-direction: column;
+    gap: 8px;
 }
 
 .nav-button {
-    width: calc(100% - 10px);
-    margin: 0 5px 8px 5px;
-    font-size: 0.9rem; /* Reduce font size by 25% */
-    background-color: var(--color-dark-blue);
-    color: white;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-align: left;
+    background-color: transparent;
+    color: var(--color-accent);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nav-button:hover {
+    background-color: rgba(143, 184, 179, 0.1);
+    color: var(--color-primary);
+}
+
+.nav-button.active {
+    background-color: var(--color-primary);
+    color: var(--color-white);
 }
 
 nav.navigation {
-    flex: 0 0 250px;
+    flex: 0 0 280px;
     display: flex;
     flex-direction: column;
-    justify-content: flex-start; /* verhindert space-between Verteilung */
-    align-items: stretch;        /* volle Nav-Breite für Kinder */
+    justify-content: flex-start;
+    align-items: stretch;
     gap: 0;
-    background-color: var(--color-light-gray);
+    background-color: var(--color-white);
+    border-right: 1px solid #e2e8f0;
+    padding-top: 2rem;
 }
 
 nav.navigation > section.nav-group:last-child {
   margin-top: auto;
+  margin-bottom: 2rem;
 }
 
 .section-label {
-    display: block; /* Make label a block-level element */
-    width: 100%; /* Ensure it spans the full width of the container */
-    text-align: center; /* Keep the text centered */
-    font-size: 1.2rem; /* Larger font size than buttons */
-    font-weight: bold; /* Make the text bold */
-    color: white; /* White text color */
-    background-color: var(--color-light-gray); /* Hellgrau für die Labels */
-    padding: 5px 10px; /* Padding for label */
-    border-radius: 0; /* Entfernt die runden Ecken */
-    margin-bottom: 10px; /* Space between label and buttons */
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0 1rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
 }
 
 .section-label-headline {
-    /* Specific styles for headline labels if needed */
-
+    font-size: 1.5rem;
+    color: var(--color-dark);
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    padding: 0;
 }
