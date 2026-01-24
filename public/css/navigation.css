@@ -69,11 +69,13 @@ nav.navigation > section.nav-group:last-child {
 }
 
 .section-label-headline {
-    font-size: 1.5rem;
+    font-size: 2rem;
     color: var(--color-dark);
     text-transform: none;
-    letter-spacing: normal;
+    letter-spacing: -0.02em;
     font-weight: 700;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
     padding: 0;
+    text-align: center; /* Centered as requested */
+    width: 100%;
 }
