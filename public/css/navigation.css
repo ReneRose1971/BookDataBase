@@ -74,8 +74,11 @@ nav.navigation > section.nav-group:last-child {
     text-transform: none;
     letter-spacing: -0.02em;
     font-weight: 700;
-    margin-bottom: 2rem;
-    padding: 0;
-    text-align: center; /* Centered as requested */
+    margin-bottom: 0;
+    padding: 1.5rem 1rem;
+    text-align: center;
     width: 100%;
+    background-color: #e2e8f0; /* Same as button-group bg */
+    border-bottom: 1px solid #cbd5e1; /* Consistent with button-group border */
+    box-sizing: border-box;
 }
