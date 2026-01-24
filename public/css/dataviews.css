@@ -44,6 +44,7 @@ tr.selected {
     gap: 1.5rem;
     flex: 1; /* Nimmt verfügbaren Platz ein, um button-group nach unten zu schieben */
     min-height: 50vh;
+    border: 2px solid red; /* Highlight container with red border for testing */
 }
 
 .view-content-container > table {
