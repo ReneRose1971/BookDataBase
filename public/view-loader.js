@@ -7,7 +7,7 @@ export async function loadFragment(target, fragmentPath) {
         return;
     }
 
-    if (fragmentPath.endsWith('.view.html')) {
+    if (fragmentPath.endsWith('.view.html') && !fragmentPath.includes('editor')) {
         console.error(`View-Pfad wurde fälschlich als Fragment verwendet: ${fragmentPath}`);
         displayError(`Fehler: View-Pfad wurde fälschlich als Fragment verwendet: ${fragmentPath}`);
         return;
