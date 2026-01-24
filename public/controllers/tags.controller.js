@@ -14,7 +14,7 @@ export async function mount(ctx) {
     rootElement.addEventListener('click', handleRootActions);
 
     enableSingleRowSelection(rootElement.querySelector('tbody'), (id) => {
-        selectedTagId = id;
+        selectedTagId = parseInt(id, 10);
     });
 }
 
