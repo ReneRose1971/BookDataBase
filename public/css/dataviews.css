@@ -26,21 +26,22 @@ tr.selected {
     display: flex;
     flex-direction: column;
     height: 100%;
-    min-height: 50vh; /* Minimum 50% of viewport height */
+    min-height: 50vh;
     background: var(--color-white);
     border-radius: 12px;
     box-shadow: var(--shadow-md);
     overflow: hidden;
     border: 1px solid #e2e8f0;
+    justify-content: flex-start; /* Ensure items start from the top */
 }
 
 .view-wrapper > table {
     width: 100%;
-    flex: 1 1 50%; /* Grow to fill space, but at least 50% of the wrapper if possible */
     border-collapse: collapse;
-    margin: 0;
+    margin-top: 30px; /* Added 30px margin to the top */
     background-color: var(--color-white);
     table-layout: fixed;
+    flex: 0 1 auto; /* Don't force flex-grow if not needed, keep 50vh min-height on wrapper */
 }
 
 .view-wrapper > table thead,
