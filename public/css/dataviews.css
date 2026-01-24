@@ -26,7 +26,7 @@ tr.selected {
     display: flex;
     flex-direction: column;
     height: 100%;
-    min-height: 0;
+    min-height: 50vh; /* Minimum 50% of viewport height */
     background: var(--color-white);
     border-radius: 12px;
     box-shadow: var(--shadow-md);
@@ -36,6 +36,7 @@ tr.selected {
 
 .view-wrapper > table {
     width: 100%;
+    flex: 1 1 50%; /* Grow to fill space, but at least 50% of the wrapper if possible */
     border-collapse: collapse;
     margin: 0;
     background-color: var(--color-white);
