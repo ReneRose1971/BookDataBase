@@ -5,7 +5,8 @@ let selectedTagId = null;
 let editorMode = 'create';
 let cachedTags = [];
 
-export async function mount(rootElement) {
+export async function mount(ctx) {
+    const rootElement = ctx.root || ctx;
     cachedTags = await fetchTags();
     renderTagsTable(rootElement, cachedTags);
     removeEditor(rootElement);

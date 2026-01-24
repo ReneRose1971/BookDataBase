@@ -5,7 +5,8 @@ let selectedAuthorId = null;
 let cachedAuthors = [];
 let editorMode = 'create';
 
-export async function mount(rootElement) {
+export async function mount(ctx) {
+    const rootElement = ctx.root || ctx;
     // Fetch and render authors
     cachedAuthors = await fetchAuthors();
     renderAuthorsTable(rootElement, cachedAuthors);

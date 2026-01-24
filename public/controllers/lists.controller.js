@@ -5,7 +5,8 @@ let selectedListId = null;
 let cachedLists = [];
 let editorMode = 'create';
 
-export async function mount(rootElement) {
+export async function mount(ctx) {
+    const rootElement = ctx.root || ctx;
     // Fetch and render lists
     cachedLists = await fetchLists();
     renderListsTable(rootElement, cachedLists);

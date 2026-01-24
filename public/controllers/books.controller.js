@@ -7,7 +7,8 @@ let editorMode = 'create';
 
 const abortController = new AbortController();
 
-export async function mount(rootElement) {
+export async function mount(ctx) {
+    const rootElement = ctx.root || ctx;
     const filterSelect = rootElement.querySelector('#booklistFilter');
 
     // Load lists for filter

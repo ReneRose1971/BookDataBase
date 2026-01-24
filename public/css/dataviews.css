@@ -31,7 +31,7 @@ tr.selected {
     border-radius: 12px;
     box-shadow: var(--shadow-md);
     overflow: hidden;
-    border: 2px solid var(--color-accent); /* Border matching nav button text color */
+    border: 1px solid #e2e8f0;
     justify-content: flex-start;
 }
 
@@ -44,7 +44,6 @@ tr.selected {
     gap: 1.5rem;
     flex: 1; /* Nimmt verfügbaren Platz ein, um button-group nach unten zu schieben */
     min-height: 50vh;
-    border: 2px solid #ff0000; /* Red border for testing */
 }
 
 .view-content-container > table {
