@@ -1,25 +1,27 @@
 <div class="view-wrapper view-wrapper-books">
-<div class="section-label section-label-headline"> </div>
-    <table>
-            <thead>
-                <tr>
-                    <th>Titel</th>
-                    <th>Autor</th>
-                </tr>
-            </thead>
-        <tbody>
-            <!-- Leerer Body -->
-        </tbody>
-    </table>
+    <div class="section-label section-label-headline"> </div>
+    <div class="view-content-container">
+        <table>
+                <thead>
+                    <tr>
+                        <th>Titel</th>
+                        <th>Autor</th>
+                    </tr>
+                </thead>
+            <tbody>
+                <!-- Leerer Body -->
+            </tbody>
+        </table>
 
-    <div style="margin: 1rem 0; display: flex; align-items: center; gap: 1rem; width: 70%; margin-left: auto; margin-right: auto;">
-        <label for="booklistFilter" style="margin-bottom: 0; white-space: nowrap; color: black;">Buchliste wählen:</label>
-        <select id="booklistFilter" style="margin-bottom: 0;"></select>
+        <div class="list-filter-container">
+            <label for="booklistFilter">Buchliste wählen:</label>
+            <select id="booklistFilter"></select>
+        </div>
     </div>
 
     <div class="book-editor-slot"></div>
 
-     <div class="button-group">
+    <div class="button-group">
         <button class="func-button" data-book-action="create">Neues Buch</button>
         <button class="func-button" data-book-action="edit">Buch editieren</button>
         <button class="func-button" data-book-action="delete">Buch löschen</button>

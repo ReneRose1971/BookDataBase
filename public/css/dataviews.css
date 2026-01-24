@@ -31,23 +31,55 @@ tr.selected {
     border-radius: 12px;
     box-shadow: var(--shadow-md);
     overflow: hidden;
-    border: 2px solid #ff0000; /* Red border for testing visibility */
+    border: 1px solid #e2e8f0; /* Restored original border */
     justify-content: flex-start;
 }
 
-.view-wrapper > table {
-    width: 70%; /* Set width to 70% as requested */
-    margin-left: auto;
-    margin-right: auto;
+.view-content-container {
+    width: 70%;
+    max-width: 1000px;
+    margin: 30px auto 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    flex: 1; /* Nimmt verfügbaren Platz ein, um button-group nach unten zu schieben */
+    min-height: 50vh;
+}
+
+.view-content-container > table {
+    width: 100%;
     border-collapse: collapse;
-    margin-top: 30px; /* Added 30px margin to the top */
     background-color: var(--color-white);
     table-layout: fixed;
-    flex: 0 1 auto; /* Don't force flex-grow if not needed, keep 50vh min-height on wrapper */
     border-radius: 8px;
     overflow: hidden;
     box-shadow: var(--shadow-sm);
     border: 1px solid #e2e8f0;
+}
+
+.list-filter-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background-color: #f8fafc;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.list-filter-container label {
+    margin-bottom: 0;
+    white-space: nowrap;
+    color: var(--color-dark);
+}
+
+.list-filter-container select {
+    margin-bottom: 0;
+    flex: 1;
+}
+
+.view-wrapper > table {
+    display: none; /* Veraltet, da wir jetzt .view-content-container nutzen */
 }
 
 .view-wrapper > table thead,
