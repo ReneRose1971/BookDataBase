@@ -36,12 +36,18 @@ tr.selected {
 }
 
 .view-wrapper > table {
-    width: 100%;
+    width: 70%; /* Set width to 70% as requested */
+    margin-left: auto;
+    margin-right: auto;
     border-collapse: collapse;
     margin-top: 30px; /* Added 30px margin to the top */
     background-color: var(--color-white);
     table-layout: fixed;
     flex: 0 1 auto; /* Don't force flex-grow if not needed, keep 50vh min-height on wrapper */
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid #e2e8f0;
 }
 
 .view-wrapper > table thead,
