@@ -1,4 +1,4 @@
-import { loadFragment } from './view-loader.js';
+import { loadViewAndController } from './view-loader.js';
 
 const routes = {
     books: { controller: './controllers/books.controller.js', title: 'Bücher' },
@@ -7,42 +7,14 @@ const routes = {
     tags: { controller: './controllers/tags.controller.js', title: 'Tags' }
 };
 
-let currentController = null;
-
-async function loadView(viewName) {
-    const route = routes[viewName];
-    if (!route) {
-        console.error(`Route not found for view: ${viewName}`);
-        return;
-    }
-
-    const { controller, title } = route;
-    const container = document.querySelector('#app');
-
-    if (currentController && currentController.unmount) {
-        currentController.unmount();
-    }
-
-    try {
-        const module = await import(controller);
-        currentController = module;
-
-        document.title = title;
-        await loadFragment(container, `/views/${viewName}.view.html`);
-        if (module.mount) {
-            module.mount(container);
-        }
-    } catch (error) {
-        console.error(`Failed to load view: ${viewName}`, error);
-    }
-}
-
 document.querySelectorAll('.nav-button[data-view]').forEach(button => {
     button.addEventListener('click', () => {
         const viewName = button.dataset.view;
-        loadView(viewName);
+        const route = routes[viewName];
+        if (route) {
+            loadViewAndController(`/views/${viewName}.view.html`, route.controller, route.title);
+        } else {
+            console.error(`Route not found for view: ${viewName}`);
+        }
     });
 });
-
-// Load the default view on initial page load
-loadView('books');

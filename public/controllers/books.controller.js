@@ -109,11 +109,6 @@ async function renderBookEditor(rootElement, mode, bookId = null) {
         if (!slot) return;
         removeEditor(rootElement);
 
-        // Legacy views (to be removed)
-        // const viewPath = mode === 'edit'
-        //     ? '/views/books-edit.view.html'
-        //     : '/views/books-create.view.html';
-
         const viewPath = '/views/book-editor.view.html'; // Unified editor view
         await loadFragment(slot, viewPath);
 
