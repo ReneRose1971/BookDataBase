@@ -1,6 +1,7 @@
 export function enableSingleRowSelection(tbody, onSelect) {
     tbody.addEventListener('click', (event) => {
         const row = event.target.closest('tr');
+        console.log('Clicked row:', row); // Debugging line
         if (!row) return;
 
         const selectedClass = 'selected';
@@ -11,6 +12,7 @@ export function enableSingleRowSelection(tbody, onSelect) {
 
         row.classList.add(selectedClass);
         const id = row.dataset.id;
+        console.log('Row dataset ID:', id); // Debugging line
         if (id) onSelect(id);
     });
 }

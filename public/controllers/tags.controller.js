@@ -14,6 +14,7 @@ export async function mount(ctx) {
     rootElement.addEventListener('click', handleRootActions);
 
     enableSingleRowSelection(rootElement.querySelector('tbody'), (id) => {
+        console.log('Row selected with ID:', id); // Debugging line
         selectedTagId = parseInt(id, 10);
     });
 }
@@ -22,26 +23,39 @@ export function unmount(rootElement) {
     rootElement.removeEventListener('click', handleRootActions);
 }
 
+// Ensure tag_id is stored as a number
+// Debugging: Log fetched tags
 async function fetchTags() {
     try {
         const res = await fetch('/api/tags');
-        return await res.json();
+        const tags = await res.json();
+        const normalizedTags = tags.map(tag => ({
+            ...tag,
+            tag_id: parseInt(tag.tag_id, 10) // Convert tag_id to number
+        }));
+        console.log('Normalized tags:', normalizedTags); // Debugging line
+        return normalizedTags;
     } catch (e) {
         console.error(e);
         return [];
     }
 }
 
+// Ensure data-tag-id is used consistently
+// Debugging: Verify data-id generation
 function renderTagsTable(rootElement, tags) {
     const tbody = rootElement.querySelector('tbody');
     if (!tbody) return;
     selectedTagId = null;
-    tbody.innerHTML = tags.map(tag => `
-        <tr data-tag-id="${String(tag.tag_id)}">
-            <td>${tag.name}</td>
-            <td>${tag.book_count || 0}</td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = tags.map(tag => {
+        console.log('Rendering tag:', tag); // Debugging line
+        return `
+            <tr data-id="${String(tag.tag_id)}">
+                <td>${tag.name}</td>
+                <td>${tag.book_count || 0}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function handleRootActions(event) {
@@ -57,7 +71,16 @@ function handleRootActions(event) {
     }
 }
 
+// Ensure selectedTagId is properly updated and validated before actions
+// Debugging: Log selectedTagId and type during processing
 function handleTagActions(action, rootElement) {
+    console.log('Selected Tag ID:', selectedTagId, 'Type:', typeof selectedTagId); // Debugging line
+
+    if (!selectedTagId && (action === 'edit' || action === 'delete')) {
+        alert('Bitte Tag auswählen.');
+        return;
+    }
+
     switch (action) {
         case 'create':
             setEditorMode(rootElement, 'create');
@@ -84,8 +107,8 @@ function handleEditorActions(action, rootElement) {
 
 function handleTableClick(event) {
     const row = event.target.closest('tr');
-    if (row && row.dataset.tagId) {
-        selectedTagId = parseInt(row.dataset.tagId, 10);
+    if (row && row.dataset.id) { // Updated to use data-id
+        selectedTagId = parseInt(row.dataset.id, 10);
         const rows = event.currentTarget.querySelectorAll('tr');
         rows.forEach(r => r.classList.remove('selected'));
         row.classList.add('selected');
@@ -141,12 +164,15 @@ async function renderEditor(rootElement, value) {
     }
 }
 
+// Debugging: Log database access details
 async function deleteSelectedTag(rootElement) {
     if (!selectedTagId) {
         alert('Bitte Tag auswählen.');
         return;
     }
     const selectedTag = cachedTags.find(tag => tag.tag_id === selectedTagId);
+    console.log('Selected Tag for Deletion:', selectedTag); // Debugging line
+
     if (!selectedTag) {
         alert('Ausgewähltes Tag nicht gefunden.');
         return;
@@ -159,6 +185,7 @@ async function deleteSelectedTag(rootElement) {
     }
     try {
         const res = await fetch(`/api/tags/${selectedTagId}`, { method: 'DELETE' });
+        console.log('Database Response:', res); // Debugging line
         if (res.ok) {
             selectedTagId = null;
             cachedTags = await fetchTags();
