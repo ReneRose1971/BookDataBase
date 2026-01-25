@@ -85,7 +85,7 @@ export async function loadViewAndController(viewPath, controllerPath, title) {
         const module = await import(controllerPath);
         try {
             if (module.mount.length >= 1) {
-                module.mount(ctx);
+                module.mount(ctx.root); // Pass only the root element
             } else {
                 module.mount(ctx.root);
             }

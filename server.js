@@ -3,6 +3,7 @@ import { Client, Pool } from "pg";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { getApiKeyStatus, setApiKey, deleteApiKey } from './config/config-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -691,6 +692,65 @@ app.put('/api/books/:id', async (req, res) => {
         res.status(500).json({ error: 'Fehler beim Aktualisieren des Buches.' });
     } finally {
         client.release();
+    }
+});
+
+// API Key Management
+app.get('/api/config/apis', async (req, res) => {
+    try {
+        const status = await getApiKeyStatus();
+        res.json(status);
+    } catch (error) {
+        console.error('Error fetching API key status:', error);
+        res.status(500).json({ error: 'Fehler beim Abrufen des API-Status.' });
+    }
+});
+
+app.post('/api/config/apis/openai', async (req, res) => {
+    const { key } = req.body;
+    if (!key) {
+        return res.status(400).json({ error: 'Key darf nicht leer sein.' });
+    }
+    try {
+        await setApiKey('openai', key);
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error saving OpenAI key:', error);
+        res.status(500).json({ error: 'Fehler beim Speichern des OpenAI-Schlüssels.' });
+    }
+});
+
+app.post('/api/config/apis/openlibrary', async (req, res) => {
+    const { key } = req.body;
+    if (!key) {
+        return res.status(400).json({ error: 'Key darf nicht leer sein.' });
+    }
+    try {
+        await setApiKey('openlibrary', key);
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error saving Open Library key:', error);
+        res.status(500).json({ error: 'Fehler beim Speichern des Open Library-Schlüssels.' });
+    }
+});
+
+app.delete('/api/config/apis/openai', async (req, res) => {
+    try {
+        await deleteApiKey('openai');
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting OpenAI key:', error);
+        res.status(500).json({ error: 'Fehler beim Entfernen des OpenAI-Schlüssels.' });
+    }
+});
+
+app.delete('/api/config/apis/openlibrary', async (req, res) => {
+    try {
+        await deleteApiKey('openlibrary');
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting Open Library key:', error);
+        res.status(500).json({ error: 'Fehler beim Entfernen des Open Library-Schlüssels.' });
     }
 });
 

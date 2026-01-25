@@ -1,0 +1,23 @@
+<div class="view-wrapper view-wrapper-apis">
+    <div class="section-label section-label-headline">APIs</div>
+    <div class="view-content-container">
+        <form class="api-key-form">
+            <div class="form-group">
+                <label for="openai-api-key">OpenAI API Key</label>
+                <input type="password" id="openai-api-key" name="openai-api-key" placeholder="API Key eingeben">
+                <span id="openai-api-key-status" class="api-key-status"></span>
+            </div>
+            <div class="form-group">
+                <label for="openlibrary-api-key">Open Library API Key</label>
+                <input type="password" id="openlibrary-api-key" name="openlibrary-api-key" placeholder="API Key eingeben">
+                <span id="openlibrary-api-key-status" class="api-key-status"></span>
+            </div>
+        </form>
+        <div class="button-group">
+            <button class="func-button" data-api-action="cancel">Abbrechen</button>
+            <button class="func-button" data-api-action="save">Speichern</button>
+            <button class="func-button" data-api-action="remove-openai">OpenAI Schlüssel entfernen</button>
+            <button class="func-button" data-api-action="remove-openlibrary">Open Library Schlüssel entfernen</button>
+        </div>
+    </div>
+</div>

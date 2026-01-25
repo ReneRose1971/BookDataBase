@@ -95,3 +95,8 @@
     white-space: nowrap;
     flex-shrink: 0;
 }
+
+.api-key-form {
+    width: 70vh;
+    margin-top: 1rem;
+}

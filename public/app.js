@@ -4,7 +4,8 @@ const routes = {
     books: { controller: './controllers/books.controller.js', title: 'Bücher' },
     authors: { controller: './controllers/authors.controller.js', title: 'Autoren' },
     lists: { controller: './controllers/lists.controller.js', title: 'Listen' },
-    tags: { controller: './controllers/tags.controller.js', title: 'Tags' }
+    tags: { controller: './controllers/tags.controller.js', title: 'Tags' },
+    userConfig: { controller: './controllers/userConfig.controller.js', title: 'Konfiguration' }
 };
 
 document.querySelectorAll('.nav-button[data-view]').forEach(button => {
