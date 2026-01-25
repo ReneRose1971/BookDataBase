@@ -100,3 +100,38 @@
     width: 70vh;
     margin-top: 1rem;
 }
+
+.search-import-editor .search-import-authors,
+.search-import-editor .search-import-lists {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.search-import-author-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.search-import-author-row input {
+    width: 100%;
+}
+
+.search-import-list-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.search-import-status {
+    font-size: 0.9rem;
+    color: #334155;
+}
+
+.search-import-status.is-error {
+    color: #b91c1c;
+    font-weight: 600;
+}

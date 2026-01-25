@@ -1,0 +1,40 @@
+<div class="view-wrapper view-wrapper-search">
+    <div class="section-label section-label-headline"> </div>
+    <div class="view-content-container">
+        <section class="search-form">
+            <label for="searchTitle">Titel</label>
+            <input type="text" id="searchTitle" name="title" placeholder="Titel eingeben">
+            <div class="search-actions">
+                <button class="func-button" data-search-action="local">Lokal suchen</button>
+                <button class="func-button" data-search-action="external" disabled>Extern suchen</button>
+            </div>
+            <div class="search-hint" data-search-hint>Lokale Suche ist immer der erste Schritt.</div>
+        </section>
+
+        <section class="search-status" data-search-status></section>
+
+        <section class="search-results">
+            <h3>Ergebnisse</h3>
+            <div class="search-results-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Quelle</th>
+                            <th>Titel</th>
+                            <th>Autor(en)</th>
+                            <th>ISBN</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody data-search-results-body>
+                        <tr>
+                            <td colspan="5">Keine Ergebnisse geladen.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="search-editor-slot"></div>
+    </div>
+</div>
