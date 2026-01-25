@@ -24,6 +24,16 @@ export async function fetchAuthorById(authorId) {
     return pool.query(query, [authorId]);
 }
 
+export async function fetchAuthorByName(firstName, lastName) {
+    const query = `
+        SELECT author_id, first_name, last_name
+        FROM authors
+        WHERE LOWER(first_name) = LOWER($1)
+        AND LOWER(last_name) = LOWER($2)
+    `;
+    return pool.query(query, [firstName, lastName]);
+}
+
 export async function checkAuthorDuplicate(firstName, lastName, authorId = null) {
     const query = authorId
         ? `

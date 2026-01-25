@@ -1,63 +1,106 @@
-# Architektur-Dokumentation
+# Architektur-Dokumentation (Ist-Zustand)
 
-## Überblick
-Die Buchdatenbank-Anwendung ist eine datengetriebene Webanwendung, die Bücher, Autoren, Tags und Buchlisten verwaltet. Sie basiert auf einer Node.js-Backend-Architektur mit Express.js und verwendet PostgreSQL als Datenbank. Das Frontend ist modular aufgebaut und verwendet Vanilla JavaScript für die UI-Logik.
+## Zweck & Einordnung
 
-## Repository-Struktur
-| Ordner/Datei                     | Zweck                                      |
-|----------------------------------|--------------------------------------------|
-| `server.js`                      | Einstiegspunkt der Anwendung               |
-| `public/`                        | Statische Dateien und Frontend-Logik       |
-| `server/`                        | Backend-Logik (Controller, Services, etc.) |
-| `docs/`                          | Dokumentation                              |
-| `config/`                        | Konfigurationsdateien                      |
+### Was dieses Dokument beschreibt
+Diese Datei beschreibt den technischen Ist-Zustand der Anwendung: Verzeichnisstruktur, zentrale Laufzeitflüsse, Frontend-/Backend-Bausteine und Datenzugriff. Sie ist als Orientierung für Entwickler*innen und KI-Systeme gedacht.
 
-## Entry Points & Initialisierung
-- **Frontend**: `public/app.js` lädt Views und initialisiert Controller.
-- **Backend**: `server.js` startet den Express-Server und bindet Routen ein.
+### Was dieses Dokument bewusst nicht beschreibt
+- Keine Fachlogik, Features, Use Cases oder Geschäftsregeln.
+- Keine Ziel- oder Wunscharchitektur.
+- Keine Roadmap oder Erweiterungspläne.
 
-## Seiten/Views
-| View                     | Beschreibung                                |
-|--------------------------|--------------------------------------------|
-| `books.view.html`        | Übersicht und Verwaltung von Büchern       |
-| `authors.view.html`      | Übersicht und Verwaltung von Autoren       |
+## Gesamtüberblick (Ist-Zustand)
 
-## Komponenten / Wiederverwendbare UI-Bausteine
-- **`view-loader.js`**: Lädt HTML-Views dynamisch.
-- **`ui-helpers.js`**: Enthält generische UI-Hilfsfunktionen.
+### Frontend / Backend / Datenhaltung
+- **Frontend**: Statische HTML-Dateien und ES-Module im Ordner `public/`.
+- **Backend**: Express.js-Anwendung im Ordner `server/`.
+- **Datenhaltung**: PostgreSQL-Datenbank, angebunden über `pg` (Pool).
 
-## Datenfluss
-```mermaid
-graph TD;
-    UI-->Controller;
-    Controller-->Service;
-    Service-->Repository;
-    Repository-->Datenbank;
-    Datenbank-->Repository;
-    Repository-->Service;
-    Service-->Controller;
-    Controller-->UI;
-```
+### Verwendete Technologien
+- Node.js (ES Modules)
+- Express.js (HTTP-Server, Routing)
+- PostgreSQL (persistente Datenhaltung)
+- Vanilla JavaScript im Frontend (keine Frameworks, kein Build-Step)
 
-## API-Integration
-| Endpoint               | Methode | Zweck                     | Genutzt in               |
-|------------------------|---------|---------------------------|--------------------------|
-| `/api/tags`            | GET     | Liste aller Tags          | `tags.service.js`        |
-| `/api/config/apis`     | GET     | API-Status abrufen        | `config.service.js`      |
+### Bewusst einfache Struktur
+Die Anwendung folgt einer klaren Ordnerstruktur mit getrennten Bereichen für Frontend, Backend, Konfiguration und Dokumentation. Komplexe Rahmenwerke oder Build-Pipelines sind nicht vorhanden.
 
-## Domänenobjekte & Beziehungen
-- **Book**: Hat Titel, Autoren, Listen und Tags.
-- **Author**: Hat Vor- und Nachname.
-- **Tag**: Wird Büchern zugeordnet.
+## Frontend-Architektur
 
-## Wichtige Regeln/Validierungen
-- **Duplikatprüfung**: Bücher mit identischem Titel und denselben Autoren werden verhindert.
-- **Transaktionen**: Änderungen an Büchern erfolgen atomar.
+### SPA-Navigation
+- Navigation erfolgt clientseitig über `public/app.js`.
+- Views werden dynamisch geladen und in ein zentrales Content-Element eingesetzt.
+- Es gibt keinen Framework-Router.
 
-## Bekannte technische Schulden / Risiken
-- Fehlende Tests für einige Services.
-- Keine zentrale Fehlerbehandlung im Frontend.
+### View/Controller-Prinzip
+- HTML-Views liegen in `public/views/`.
+- Jeder View kann einen Controller (`public/controllers/*.controller.js`) besitzen.
+- Controller exportieren `mount(ctx)` und optional `unmount(root)`.
 
-## Offene Punkte / Annahmen
-- Authentifizierung ist nicht implementiert.
-- Annahme: Nur ein Nutzer greift gleichzeitig auf die Anwendung zu.
+### Lifecycle (mount / unmount)
+- Beim View-Wechsel wird `unmount` des vorherigen Controllers aufgerufen (falls vorhanden).
+- Danach wird die neue View geladen und `mount(ctx)` aufgerufen.
+
+### Dynamisches Laden von Views & Fragmenten
+- `public/view-loader.js` lädt View-HTML und optionale Fragmente (`data-fragment`).
+- Fragmente sind eigenständige HTML-Dateien, die in definierte Container gerendert werden.
+
+### Editor-System (Manifest-basiert)
+- Editor-Definitionen basieren auf JSON-Manifesten in `public/editors/`.
+- Shells und Parts liegen in `public/views/editors/`.
+- Das Editor-Runtime-Modul lädt Shells, verteilt Parts in Slots und bindet Aktionen.
+
+### Disposables / Cleanup-Strategie
+- `public/editor-runtime/disposables.js` verwaltet Cleanup-Funktionen.
+- Event-Handler und Ressourcen sollen über Disposables sauber entfernt werden.
+
+## Backend-Struktur
+
+### Vorhandene Server-Komponenten
+- Einstieg: `server/index.js` und `server/app.js`.
+- Routen: `server/routes/*.routes.js`.
+- Controller: `server/controllers/*.controller.js`.
+- Services: `server/services/*.service.js`.
+- Repositories: `server/repositories/*.repo.js`.
+- Middleware: `server/middleware/*`.
+
+### Routen, Controller, Services (rein beschreibend)
+- Routen definieren HTTP-Endpoints und delegieren an Controller.
+- Controller validieren Requests, orchestrieren Services und senden Responses.
+- Services kapseln wiederverwendbare Abläufe und rufen Repositories auf.
+- Repository-Module kapseln SQL-Statements.
+
+Es existiert keine zentrale Dependency-Injection und keine formale Layer-Durchsetzung über die Dateistruktur hinaus.
+
+## Datenzugriff & Persistenz
+- Datenzugriff erfolgt über `pg`-Pool (`server/db/pool.js`).
+- Repositories führen SQL-Queries direkt aus.
+- Transaktionen werden bei Bedarf in Services umgesetzt.
+
+## Kommunikationsflüsse
+
+### Frontend ↔ Backend
+- Frontend verwendet `fetch`-Aufrufe (z. B. in `public/ui-helpers.js` und `public/api/api-client.js`).
+- Backend liefert JSON oder statische HTML/Assets.
+
+### Initialisierung & Laufzeit
+- `server/index.js` startet den HTTP-Server.
+- `server/app.js` registriert Middleware, statische Ressourcen und Routen.
+- `public/app.js` initialisiert die SPA-Navigation im Browser.
+
+## Bewusste Designentscheidungen
+- Kein Framework-Router im Frontend.
+- Kein globaler State-Manager.
+- Kein automatisches Dependency-Injection-System.
+- Editor-System erlaubt nur einen aktiven Editor gleichzeitig.
+
+## Abgrenzungen & Nicht-Ziele
+- Keine Aussagen zu Fachlogik oder Geschäftsregeln.
+- Keine Annahmen zu zukünftigen Erweiterungen oder Refactorings.
+- Keine implizite Verpflichtung auf ein Schichtenmodell.
+
+## Offene technische Punkte
+- Fehlende Tests für Teile der Backend-Services.
+- Keine zentralisierte Fehlerbehandlung im Frontend.
+- Dokumentation der Infrastruktur/Deploy-Umgebung ist nicht vorhanden.

@@ -10,11 +10,17 @@ export async function getAuthor(authorId) {
 
 export async function createAuthor(firstName, lastName) {
     const duplicateResult = await authorsRepo.checkAuthorDuplicate(firstName, lastName);
+    if (duplicateResult.rowCount > 0) {
+        return { duplicateResult, result: { rowCount: 0, rows: [] } };
+    }
     return { duplicateResult, result: await authorsRepo.insertAuthor(firstName, lastName) };
 }
 
 export async function updateAuthor(authorId, firstName, lastName) {
     const duplicateResult = await authorsRepo.checkAuthorDuplicate(firstName, lastName, authorId);
+    if (duplicateResult.rowCount > 0) {
+        return { duplicateResult, result: { rowCount: 0, rows: [] } };
+    }
     return { duplicateResult, result: await authorsRepo.updateAuthor(authorId, firstName, lastName) };
 }
 
