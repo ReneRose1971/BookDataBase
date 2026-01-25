@@ -24,27 +24,13 @@ export async function saveOpenAiKey(req, res) {
     }
 }
 
-export async function saveOpenLibraryKey(req, res) {
-    const { key } = req.body;
-    if (!key) {
-        return res.status(400).json({ error: 'Key darf nicht leer sein.' });
-    }
-    try {
-        await configService.saveKey('openlibrary', key);
-        res.status(204).send();
-    } catch (error) {
-        console.error('Error saving Open Library key:', error);
-        res.status(500).json({ error: 'Fehler beim Speichern des Open Library-Schlüssels.' });
-    }
-}
-
 export async function saveGoogleBooksKey(req, res) {
     const { key } = req.body;
     if (!key) {
         return res.status(400).json({ error: 'Key darf nicht leer sein.' });
     }
     try {
-        await configService.saveKey('google_books', key);
+        await configService.saveKey('googlebooks', key);
         res.status(204).send();
     } catch (error) {
         console.error('Error saving Google Books key:', error);
@@ -62,22 +48,12 @@ export async function deleteOpenAiKey(req, res) {
     }
 }
 
-export async function deleteOpenLibraryKey(req, res) {
-    try {
-        await configService.removeKey('openlibrary');
-        res.status(204).send();
-    } catch (error) {
-        console.error('Error deleting Open Library key:', error);
-        res.status(500).json({ error: 'Fehler beim Entfernen des Open Library-Schlüssels.' });
-    }
-}
-
 export async function deleteGoogleBooksKey(req, res) {
     try {
-        await configService.removeKey('google_books');
+        await configService.removeKey('googlebooks');
         res.status(204).send();
     } catch (error) {
         console.error('Error deleting Google Books key:', error);
-        res.status(500).json({ error: 'Fehler beim Entfernen des Google Books-Schlüssels.' });
+        res.status(500).json({ error: 'Fehler beim Löschen des Google Books-Schlüssels.' });
     }
 }

@@ -1,10 +1,8 @@
 import { getApiKey } from "../../../config/config-store.js";
 import { SearchSource, normalizeTitleInput } from "../../models/search.models.js";
 import { searchGoogleBooks } from "./providers/google-books.provider.js";
-import { searchOpenLibrary } from "./providers/open-library.provider.js";
-import { searchDnb } from "./providers/dnb.provider.js";
 
-const PROVIDERS = [SearchSource.GOOGLE_BOOKS, SearchSource.OPEN_LIBRARY, SearchSource.DNB];
+const PROVIDERS = [SearchSource.GOOGLE_BOOKS];
 
 function normalizeProviders(requestedProviders) {
     if (!Array.isArray(requestedProviders) || requestedProviders.length === 0) {
@@ -25,10 +23,10 @@ export async function searchExternalByTitle(title, { providers } = {}) {
 
     if (requestedProviders.includes(SearchSource.GOOGLE_BOOKS)) {
         try {
-            const apiKey = await getApiKey("google_books");
-            const googleItems = await searchGoogleBooks(normalizedTitle, { apiKey });
-            results.push(...googleItems);
-            providerStatus[SearchSource.GOOGLE_BOOKS] = { status: "ok", count: googleItems.length };
+            const apiKey = await getApiKey("googlebooks");
+            const googleBooksItems = await searchGoogleBooks(normalizedTitle, { apiKey });
+            results.push(...googleBooksItems);
+            providerStatus[SearchSource.GOOGLE_BOOKS] = { status: "ok", count: googleBooksItems.length };
         } catch (error) {
             if (error.code === "GOOGLE_BOOKS_KEY_MISSING") {
                 const missingKeyError = new Error("Google Books API-Schlüssel fehlt.");
@@ -36,26 +34,6 @@ export async function searchExternalByTitle(title, { providers } = {}) {
                 throw missingKeyError;
             }
             providerStatus[SearchSource.GOOGLE_BOOKS] = { status: "error" };
-        }
-    }
-
-    if (requestedProviders.includes(SearchSource.OPEN_LIBRARY)) {
-        try {
-            const openLibraryItems = await searchOpenLibrary(normalizedTitle);
-            results.push(...openLibraryItems);
-            providerStatus[SearchSource.OPEN_LIBRARY] = { status: "ok", count: openLibraryItems.length };
-        } catch (error) {
-            providerStatus[SearchSource.OPEN_LIBRARY] = { status: "error" };
-        }
-    }
-
-    if (requestedProviders.includes(SearchSource.DNB)) {
-        try {
-            const dnbItems = await searchDnb(normalizedTitle);
-            results.push(...dnbItems);
-            providerStatus[SearchSource.DNB] = { status: "ok", count: dnbItems.length };
-        } catch (error) {
-            providerStatus[SearchSource.DNB] = { status: "error", code: error.code || "DNB_UNAVAILABLE" };
         }
     }
 

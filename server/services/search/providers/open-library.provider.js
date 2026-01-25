@@ -11,38 +11,24 @@ function extractYear(year) {
     return null;
 }
 
-export async function searchOpenLibrary(title, { limit = 10, fetcher = fetch } = {}) {
-    const url = new URL("https://openlibrary.org/search.json");
-    url.searchParams.set("title", title);
-    url.searchParams.set("limit", String(limit));
+export async function searchGoogleBooks(title, { limit = 10, fetcher = fetch } = {}) {
+    const url = new URL("https://www.googleapis.com/books/v1/volumes");
+    url.searchParams.set("q", title);
+    url.searchParams.set("maxResults", String(limit));
 
     const response = await fetcher(url.toString());
     if (!response.ok) {
-        const error = new Error(`Open Library request failed with ${response.status}`);
-        error.code = "OPEN_LIBRARY_ERROR";
+        const error = new Error(`Google Books request failed with ${response.status}`);
+        error.code = "GOOGLE_BOOKS_ERROR";
         throw error;
     }
 
     const data = await response.json();
-    const docs = Array.isArray(data.docs) ? data.docs : [];
-
-    return docs
-        .map((doc) => {
-            const docTitle = doc.title || "";
-            if (!docTitle) {
-                return null;
-            }
-            return createSearchResultItem({
-                title: docTitle,
-                authors: Array.isArray(doc.author_name) ? doc.author_name : [],
-                isbn: Array.isArray(doc.isbn) ? doc.isbn[0] : null,
-                year: extractYear(doc.first_publish_year),
-                source: SearchSource.OPEN_LIBRARY,
-                rawPayload: {
-                    key: doc.key,
-                    source: "open_library"
-                }
-            });
-        })
-        .filter(Boolean);
+    return data.items.map((item) => ({
+        title: item.volumeInfo.title,
+        authors: item.volumeInfo.authors || [],
+        isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier || null,
+        year: item.volumeInfo.publishedDate?.split("-")[0] || null,
+        source: SearchSource.GOOGLE_BOOKS,
+    }));
 }
