@@ -66,3 +66,8 @@ ehthumbs.db
 *.sql
 *.dump
 *.bak
+
+# =========================
+# Secrets
+# =========================
+config/secrets.json

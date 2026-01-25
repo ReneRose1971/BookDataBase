@@ -1,22 +1,25 @@
 <div class="view-wrapper view-wrapper-tags">
-<div class="section-label section-label-headline"> </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Bücher</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Leerer Body -->
-            <tr>
-                <td></td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="section-label section-label-headline"> </div>
+    <div class="view-content-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Bücher</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Leerer Body -->
+                <tr>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="tag-editor-slot"></div>
+    </div>
     <div class="button-group">
-        <button class="func-button">Neues Tag</button>
-        <button class="func-button">Tag bearbeiten</button>
-        <button class="func-button">Tag löschen</button>
+        <button class="func-button" data-tag-action="create">Neues Tag</button>
+        <button class="func-button" data-tag-action="edit">Tag bearbeiten</button>
+        <button class="func-button" data-tag-action="delete">Tag löschen</button>
     </div>
 </div>

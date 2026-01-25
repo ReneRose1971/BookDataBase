@@ -1,8 +1,11 @@
 :root {
-    --color-light-gray: #d3d3d3;
-    --color-dark-blue: #2c2c6c;
-    --color-yellow: #ffc107;
-    --color-beige: #fdf5e6;
+    --color-primary: #8fb8b3; /* Teal-ish from image */
+    --color-dark: #2a303c;    /* Deep dark from image */
+    --color-accent: #4a5568;  /* Muted blue-gray from image */
+    --color-bg: #e2e8f0;      /* Light gray-blue from image */
+    --color-white: #ffffff;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 html, body {
@@ -11,16 +14,48 @@ html, body {
 }
 
 body {
-    font-family: Arial, sans-serif;
-    background-color: #fff;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-dark);
+    line-height: 1.5;
 }
 
-/* Added missing styles from app.css */
 main.container {
-    max-width: 520px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
 }
 
 form {
-    max-width: 520px;
-    margin: 0 auto;
+    max-width: 600px;
+    margin: 20px auto;
+    background: var(--color-white);
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+}
+
+input, select, textarea {
+    width: 100%;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+input:focus, select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(143, 184, 179, 0.2);
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--color-accent);
 }

@@ -1,8 +1,11 @@
 header, footer {
-    height: 50px;
-    background-color: var(--color-light-gray);
-    font-size: 0;
-    line-height: 0;
+    height: 60px;
+    background-color: var(--color-dark);
+    color: var(--color-white);
+    display: flex;
+    align-items: center;
+    padding: 0 2rem;
+    font-weight: 600;
 }
 
 .page-wrapper {
@@ -24,20 +27,41 @@ main#content {
     flex-direction: column;
     min-width: 0;
     width: 100%;
+    padding: 2rem;
 }
 
 .button-group {
     display: flex;
-    gap: 10px;
-    margin-top: 20px;
-    width: max-content;
+    gap: 12px;
+    margin-top: 24px;
+    width: auto;
+    justify-content: flex-start;
 }
 
 .func-button {
-    flex: 1;
     white-space: nowrap;
     width: auto;
-    min-width: max-content;
-    padding: 10px 15px; /* Base padding + 5px extra as requested */
+    min-width: 120px;
+    padding: 0.75rem 1.5rem;
     margin: 0;
+    border-radius: 6px;
+    font-weight: 600;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    background-color: #f1f5f9; /* Matched to nav-button background */
+    color: var(--color-accent); /* Matched to nav-button text */
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+.func-button:hover {
+    background-color: var(--color-primary);
+    color: var(--color-dark);
+    border-color: var(--color-primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.func-button:active {
+    transform: translateY(0);
 }

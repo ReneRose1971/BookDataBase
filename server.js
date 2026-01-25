@@ -3,6 +3,7 @@ import { Client, Pool } from "pg";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { getApiKeyStatus, setApiKey, deleteApiKey } from './config/config-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -556,7 +557,7 @@ app.get('/api/books/check-duplicate', async (req, res) => {
             JOIN book_authors ba ON b.book_id = ba.book_id
             WHERE LOWER(b.title) = LOWER($1)
             GROUP BY b.book_id
-            HAVING ARRAY_AGG(ba.author_id ORDER BY ba.author_id) = ARRAY(SELECT unnest($2::int[]) ORDER BY 1);
+            HAVING ARRAY_AGG(ba.author_id::bigint ORDER BY ba.author_id) = ARRAY(SELECT unnest($2::bigint[]) ORDER BY 1);
         `;
         const result = await pool.query(query, [title.trim(), ids]);
         if (result.rowCount > 0) {
@@ -694,6 +695,65 @@ app.put('/api/books/:id', async (req, res) => {
     }
 });
 
+// API Key Management
+app.get('/api/config/apis', async (req, res) => {
+    try {
+        const status = await getApiKeyStatus();
+        res.json(status);
+    } catch (error) {
+        console.error('Error fetching API key status:', error);
+        res.status(500).json({ error: 'Fehler beim Abrufen des API-Status.' });
+    }
+});
+
+app.post('/api/config/apis/openai', async (req, res) => {
+    const { key } = req.body;
+    if (!key) {
+        return res.status(400).json({ error: 'Key darf nicht leer sein.' });
+    }
+    try {
+        await setApiKey('openai', key);
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error saving OpenAI key:', error);
+        res.status(500).json({ error: 'Fehler beim Speichern des OpenAI-Schlüssels.' });
+    }
+});
+
+app.post('/api/config/apis/openlibrary', async (req, res) => {
+    const { key } = req.body;
+    if (!key) {
+        return res.status(400).json({ error: 'Key darf nicht leer sein.' });
+    }
+    try {
+        await setApiKey('openlibrary', key);
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error saving Open Library key:', error);
+        res.status(500).json({ error: 'Fehler beim Speichern des Open Library-Schlüssels.' });
+    }
+});
+
+app.delete('/api/config/apis/openai', async (req, res) => {
+    try {
+        await deleteApiKey('openai');
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting OpenAI key:', error);
+        res.status(500).json({ error: 'Fehler beim Entfernen des OpenAI-Schlüssels.' });
+    }
+});
+
+app.delete('/api/config/apis/openlibrary', async (req, res) => {
+    try {
+        await deleteApiKey('openlibrary');
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting Open Library key:', error);
+        res.status(500).json({ error: 'Fehler beim Entfernen des Open Library-Schlüssels.' });
+    }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
@@ -739,5 +799,37 @@ app.delete('/api/authors/:id', async (req, res) => {
     } catch (error) {
         console.error('Error deleting author:', error);
         res.status(500).json({ error: 'Fehler beim Löschen des Autors.' });
+    }
+});
+
+app.delete('/api/books/:id', async (req, res) => {
+    const bookId = parseInt(req.params.id, 10);
+
+    if (isNaN(bookId)) {
+        return res.status(400).json({ error: 'Ungültige Buch-ID.' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        await client.query('DELETE FROM book_authors WHERE book_id = $1', [bookId]);
+        await client.query('DELETE FROM book_book_lists WHERE book_id = $1', [bookId]);
+        const deleteResult = await client.query('DELETE FROM books WHERE book_id = $1', [bookId]);
+
+        if (deleteResult.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Buch nicht gefunden.' });
+        }
+
+        await client.query('COMMIT');
+        res.status(204).send();
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error deleting book:', error);
+        res.status(500).json({ error: 'Interner Serverfehler.' });
+    } finally {
+        client.release();
     }
 });
