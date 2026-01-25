@@ -113,6 +113,16 @@ function removeEditor() {
     editorMode = 'create';
 }
 
+function isDuplicateTagName(name, excludeTagId = null) {
+    const normalized = name.trim().toLowerCase();
+    return cachedTags.some((tag) => {
+        if (excludeTagId !== null && tag.tag_id === excludeTagId) {
+            return false;
+        }
+        return tag.name.trim().toLowerCase() === normalized;
+    });
+}
+
 async function renderEditor(value) {
     const slot = rootElement.querySelector('.tag-editor-slot');
     if (!slot) return;
@@ -183,13 +193,13 @@ async function handleConfirm(event) {
             alert('Bitte Tag auswählen.');
             return;
         }
-        if (cachedTags.some(tag => tag.tag_id !== selectedTagId && tag.name.trim().toLowerCase() === name.toLowerCase())) {
+        if (isDuplicateTagName(name, selectedTagId)) {
             alert('Tag existiert bereits.');
             return;
         }
         await updateTag(name);
     } else {
-        if (cachedTags.some(tag => tag.name.trim().toLowerCase() === name.toLowerCase())) {
+        if (isDuplicateTagName(name)) {
             alert('Tag existiert bereits.');
             return;
         }
