@@ -48,15 +48,30 @@ export async function openEditor({ host, manifestPath, mode = 'create', dataCont
         }
     }
 
-    const handleActions = (event) => {
+    let confirmBusy = false;
+
+    const handleActions = async (event) => {
         const actionButton = event.target.closest('[data-editor-action]');
         if (!actionButton) return;
         const action = actionButton.dataset.editorAction;
         if (action === 'confirm' && typeof actions.confirm === 'function') {
-            actions.confirm(event);
+            if (confirmBusy) return;
+            confirmBusy = true;
+            try {
+                await actions.confirm(event);
+            } catch (error) {
+                console.error('Editor confirm action failed:', error);
+            } finally {
+                confirmBusy = false;
+            }
+            return;
         }
         if (action === 'cancel' && typeof actions.cancel === 'function') {
-            actions.cancel(event);
+            try {
+                await actions.cancel(event);
+            } catch (error) {
+                console.error('Editor cancel action failed:', error);
+            }
         }
     };
 
