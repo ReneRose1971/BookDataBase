@@ -1,5 +1,5 @@
-import { fetchJson } from '../ui-helpers.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
+import { getJson, postJson, deleteJson, getErrorMessage } from '../api/api-client.js';
 
 let openAiKeyStatus = false;
 let openLibraryKeyStatus = false;
@@ -29,7 +29,7 @@ export function unmount() {
 
 async function loadApiKeyStatus(rootElement) {
     try {
-        const status = await fetchJson('/api/config/apis');
+        const status = await getJson('/api/config/apis');
         openAiKeyStatus = status.openai.present;
         openLibraryKeyStatus = status.openlibrary.present;
 
@@ -90,35 +90,30 @@ async function saveApiKeys(rootElement) {
 
     try {
         if (openAiKey) {
-            await fetch('/api/config/apis/openai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: openAiKey })
-            });
+            await postJson('/api/config/apis/openai', { key: openAiKey });
         }
 
         if (openLibraryKey) {
-            await fetch('/api/config/apis/openlibrary', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: openLibraryKey })
-            });
+            await postJson('/api/config/apis/openlibrary', { key: openLibraryKey });
         }
 
         openAiInput.value = '';
         openLibraryInput.value = '';
         await loadApiKeyStatus(rootElement);
     } catch (error) {
-        displayError(rootElement, 'Fehler beim Speichern der API-Keys.');
+        displayError(rootElement, getErrorMessage(error, 'Fehler beim Speichern der API-Keys.'));
     }
 }
 
 async function removeApiKey(rootElement, keyType) {
     try {
-        await fetch(`/api/api-keys/${keyType}`, { method: 'DELETE' });
+        const endpoint = keyType === 'openai'
+            ? '/api/config/apis/openai'
+            : '/api/config/apis/openlibrary';
+        await deleteJson(endpoint);
         await loadApiKeyStatus(rootElement);
     } catch (error) {
-        displayError(rootElement, `Fehler beim Entfernen des ${keyType} API-Keys.`);
+        displayError(rootElement, getErrorMessage(error, `Fehler beim Entfernen des ${keyType} API-Keys.`));
     }
 }
 

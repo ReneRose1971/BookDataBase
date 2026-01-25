@@ -2,6 +2,7 @@ import { enableSingleRowSelection } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
 import { createJoinChildTableController } from '../editor-runtime/join-child-table.js';
+import { getJson, postJson, putJson, deleteJson, getErrorMessage, getErrorPayload } from '../api/api-client.js';
 
 let selectedBookId = null;
 let editorMode = 'create';
@@ -53,8 +54,7 @@ export function unmount() {
 async function fetchBooks(listId = null) {
     try {
         const url = listId ? `/api/books?listId=${listId}` : '/api/books';
-        const res = await fetch(url);
-        const data = await res.json();
+        const data = await getJson(url);
         return data.items || [];
     } catch (e) {
         console.error(e);
@@ -64,8 +64,7 @@ async function fetchBooks(listId = null) {
 
 async function fetchLists() {
     try {
-        const listsRes = await fetch('/api/book-lists');
-        const listsData = await listsRes.json();
+        const listsData = await getJson('/api/book-lists');
         return listsData.items || [];
     } catch (e) {
         console.error(e);
@@ -90,18 +89,17 @@ async function deleteSelectedBook() {
     if (!confirm('Buch wirklich löschen?')) return;
 
     try {
-        const res = await fetch(`/api/books/${selectedBookId}`, { method: 'DELETE' });
-        if (res.ok) {
-            selectedBookId = null;
-            const books = await fetchBooks();
-            renderBooksTable(rootElement, books);
-            removeEditor();
-        } else {
-            const errorText = await res.text();
-            alert(`Fehler beim Löschen (${res.status}): ${errorText}`);
-        }
+        await deleteJson(`/api/books/${selectedBookId}`);
+        selectedBookId = null;
+        const books = await fetchBooks();
+        renderBooksTable(rootElement, books);
+        removeEditor();
     } catch (e) {
-        alert(`Ein Fehler ist aufgetreten: ${e.message}`);
+        const payload = getErrorPayload(e);
+        const errorText = payload === undefined || payload === null
+            ? getErrorMessage(e)
+            : (typeof payload === 'string' ? payload : JSON.stringify(payload));
+        alert(`Fehler beim Löschen (${e.status ?? 'unbekannt'}): ${errorText}`);
         console.error(e);
     }
 }
@@ -161,8 +159,13 @@ async function renderBookEditor(mode, bookId = null) {
         const listIds = assignedLists.map(l => getListId(l));
         const tagIds = assignedTags.map(t => getTagId(t)).filter(id => id !== undefined && id !== null);
 
-        const checkRes = await fetch(`/api/books/check-duplicate?title=${encodeURIComponent(title)}&authorIds=${JSON.stringify(authorIds)}`);
-        const checkData = await checkRes.json();
+        let checkData = null;
+        try {
+            checkData = await getJson(`/api/books/check-duplicate?title=${encodeURIComponent(title)}&authorIds=${JSON.stringify(authorIds)}`);
+        } catch (error) {
+            console.error(error);
+            checkData = { duplicate: false };
+        }
 
         if (checkData.duplicate && (!bookId || checkData.book_id !== bookId)) {
             alert('Ein Buch mit diesem Titel und diesen Autoren existiert bereits.');
@@ -172,19 +175,17 @@ async function renderBookEditor(mode, bookId = null) {
         const method = bookId ? 'PUT' : 'POST';
         const url = bookId ? `/api/books/${bookId}` : '/api/books';
 
-        const saveRes = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, authorIds, listIds, tagIds })
-        });
-
-        if (saveRes.ok) {
+        try {
+            if (method === 'PUT') {
+                await putJson(url, { title, authorIds, listIds, tagIds });
+            } else {
+                await postJson(url, { title, authorIds, listIds, tagIds });
+            }
             const books = await fetchBooks();
             renderBooksTable(rootElement, books);
             removeEditor();
-        } else {
-            const err = await saveRes.json();
-            alert(err.error || 'Fehler beim Speichern.');
+        } catch (error) {
+            alert(getErrorMessage(error, 'Fehler beim Speichern.'));
         }
     };
 
@@ -215,23 +216,22 @@ async function renderBookEditor(mode, bookId = null) {
     const tagsHost = editorRoot.querySelector('[data-editor-part="book-tags"]');
 
     const fetches = [
-        fetch('/api/authors'),
-        fetch('/api/book-lists'),
-        fetch('/api/tags')
+        getJson('/api/authors'),
+        getJson('/api/book-lists'),
+        getJson('/api/tags')
     ];
 
     if (bookId) {
-        fetches.push(fetch(`/api/books/${bookId}`));
+        fetches.push(getJson(`/api/books/${bookId}`));
     }
 
-    const [authorsRes, listsRes, tagsRes, bookRes] = await Promise.all(fetches);
-    allAuthors = await authorsRes.json();
-    const listsData = await listsRes.json();
+    const [authorsData, listsData, tagsData, bookDataResponse] = await Promise.all(fetches);
+    allAuthors = authorsData;
     allLists = listsData.items || [];
-    allTags = await tagsRes.json();
+    allTags = tagsData;
 
-    if (bookId && bookRes) {
-        bookData = await bookRes.json();
+    if (bookId && bookDataResponse) {
+        bookData = bookDataResponse;
     }
 
     authorsById = new Map(
@@ -289,15 +289,10 @@ async function renderBookEditor(mode, bookId = null) {
             return false;
         }
 
-        const res = await fetch(`/api/books/${bookId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, authorIds, listIds })
-        });
-
-        if (!res.ok) {
-            const err = await res.json();
-            alert(err.error || 'Fehler beim Aktualisieren.');
+        try {
+            await putJson(`/api/books/${bookId}`, { title, authorIds, listIds });
+        } catch (error) {
+            alert(getErrorMessage(error, 'Fehler beim Aktualisieren.'));
             return false;
         }
         return true;

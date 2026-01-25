@@ -1,6 +1,7 @@
 import { enableSingleRowSelection, confirmDanger } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
+import { getJson, postJson, putJson, deleteJson, getErrorMessage } from '../api/api-client.js';
 
 let selectedAuthorId = null;
 let cachedAuthors = [];
@@ -35,11 +36,7 @@ export function unmount() {
 
 async function fetchAuthors() {
     try {
-        const response = await fetch('/api/authors');
-        if (!response.ok) {
-            throw new Error('Failed to fetch authors');
-        }
-        return await response.json();
+        return await getJson('/api/authors');
     } catch (error) {
         console.error('Error fetching authors:', error);
         return [];
@@ -128,44 +125,26 @@ async function renderEditor(firstNameValue, lastNameValue) {
 
 async function createAuthor(firstName, lastName) {
     try {
-        const response = await fetch('/api/authors', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ firstName, lastName })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to create author');
-        }
+        await postJson('/api/authors', { firstName, lastName });
 
         cachedAuthors = await fetchAuthors();
         renderAuthorsTable(rootElement, cachedAuthors);
         removeEditor();
     } catch (error) {
-        alert(error.message);
+        alert(getErrorMessage(error, 'Failed to create author'));
         console.error('Error creating author:', error);
     }
 }
 
 async function updateAuthor(firstName, lastName) {
     try {
-        const response = await fetch(`/api/authors/${selectedAuthorId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ firstName, lastName })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update author');
-        }
+        await putJson(`/api/authors/${selectedAuthorId}`, { firstName, lastName });
 
         cachedAuthors = await fetchAuthors();
         renderAuthorsTable(rootElement, cachedAuthors);
         removeEditor();
     } catch (error) {
-        alert(error.message);
+        alert(getErrorMessage(error, 'Failed to update author'));
         console.error('Error updating author:', error);
     }
 }
@@ -181,18 +160,14 @@ export async function deleteSelectedAuthor() {
     }
 
     try {
-        const response = await fetch(`/api/authors/${selectedAuthorId}`, {
-            method: 'DELETE'
-        });
-
-        if (response.status === 409) {
-            const errorData = await response.json();
-            alert(errorData.error);
-            return;
-        }
-
-        if (!response.ok) {
-            throw new Error('Failed to delete author');
+        try {
+            await deleteJson(`/api/authors/${selectedAuthorId}`);
+        } catch (error) {
+            if (error.status === 409) {
+                alert(getErrorMessage(error));
+                return;
+            }
+            throw error;
         }
 
         selectedAuthorId = null;
