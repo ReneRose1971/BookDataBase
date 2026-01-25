@@ -1,5 +1,23 @@
 # FT(05) Implementierungs-Log
 
+## 2026-02-12T10:30:00+00:00
+
+### Änderungen / Dateien
+- Update: `server/services/search/providers/dnb.provider.js` (DNB-SRU-Integration inkl. Mapping/Fehlercodes)
+- Update: `server/services/search/external-search.service.js` (DNB-Provider aktiviert)
+- Update: `server/models/search.models.js` (erweiterte Suchtreffer-Felder)
+- Update: `public/controllers/search.controller.js` (Import-Buttons nur für externe Treffer)
+- Update: `package.json`, `package-lock.json` (fast-xml-parser)
+
+### Notizen
+- DNB-Provider liefert echte Treffer über SRU (recordSchema=dc).
+- Fehlercodes: `DNB_UNAVAILABLE`, `DNB_BAD_RESPONSE`.
+- Lokale Treffer blenden Import-Buttons aus.
+
+### Offene Punkte / TODO
+- Externe Rate-Limits/Caching noch nicht umgesetzt.
+- Optional: Persistente Speicherung der Search-Sessions statt In-Memory.
+
 ## 2026-01-25T15:15:43+00:00
 
 ### Änderungen / Dateien
@@ -49,7 +67,6 @@
 - Google Books Key erforderlich; Key wird nie geloggt oder im Klartext zurückgegeben (Feature 06)
 
 ### Offene Punkte / TODO
-- DNB-API-Integration (Endpunkt, Auth, Rate-Limits) fehlt → Provider liefert derzeit keine Treffer.
 - Externe Rate-Limits/Caching noch nicht umgesetzt.
 - Optional: Persistente Speicherung der Search-Sessions statt In-Memory.
 

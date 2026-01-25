@@ -120,10 +120,11 @@ function renderResults(items = []) {
         itemsById.set(item.itemId, item);
         const authors = formatAuthors(item.authors);
         const hasAuthors = Array.isArray(item.authors) && item.authors.length > 0;
-        const authorAction = hasAuthors
+        const canImport = item.source !== 'local';
+        const authorAction = canImport && hasAuthors
             ? `<button class=\"func-button\" data-search-action=\"import-author\" data-item-id=\"${item.itemId}\">Autor übernehmen</button>`
             : '<span>-</span>';
-        const bookAction = item.title && hasAuthors
+        const bookAction = canImport && item.title && hasAuthors
             ? `<button class=\"func-button\" data-search-action=\"import-book\" data-item-id=\"${item.itemId}\">Buch übernehmen</button>`
             : '<span>-</span>';
 
