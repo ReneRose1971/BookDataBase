@@ -9,7 +9,7 @@ async function ensureConfigFile() {
     try {
         await fs.access(configFilePath);
     } catch {
-        await fs.writeFile(configFilePath, JSON.stringify({ openai: null, openlibrary: null }, null, 2));
+        await fs.writeFile(configFilePath, JSON.stringify({ openai: null, openlibrary: null, google_books: null }, null, 2));
     }
 }
 
@@ -18,12 +18,19 @@ export async function getApiKeyStatus() {
     const config = JSON.parse(await fs.readFile(configFilePath, 'utf-8'));
     return {
         openai: { present: !!config.openai },
-        openlibrary: { present: !!config.openlibrary }
+        openlibrary: { present: !!config.openlibrary },
+        google_books: { present: !!config.google_books }
     };
 }
 
+export async function getApiKey(service) {
+    await ensureConfigFile();
+    const config = JSON.parse(await fs.readFile(configFilePath, 'utf-8'));
+    return config[service] || null;
+}
+
 export async function setApiKey(service, key) {
-    if (!['openai', 'openlibrary'].includes(service)) {
+    if (!['openai', 'openlibrary', 'google_books'].includes(service)) {
         throw new Error('Invalid service name');
     }
     const config = JSON.parse(await fs.readFile(configFilePath, 'utf-8'));
@@ -32,7 +39,7 @@ export async function setApiKey(service, key) {
 }
 
 export async function deleteApiKey(service) {
-    if (!['openai', 'openlibrary'].includes(service)) {
+    if (!['openai', 'openlibrary', 'google_books'].includes(service)) {
         throw new Error('Invalid service name');
     }
     const config = JSON.parse(await fs.readFile(configFilePath, 'utf-8'));
