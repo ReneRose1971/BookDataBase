@@ -1,4 +1,5 @@
 let currentController = null;
+let currentCtx = null;
 
 export async function loadFragment(target, fragmentPath) {
     if (!target) {
@@ -49,9 +50,11 @@ export async function loadViewAndController(viewPath, controllerPath, title) {
     try {
         // Unmount the current controller if it exists
         if (currentController && typeof currentController.unmount === 'function') {
-            currentController.unmount(document.querySelector('#content'));
+            const root = currentCtx?.root || document.querySelector('#content');
+            currentController.unmount(root);
         }
         currentController = null;
+        currentCtx = null;
 
         // Load the view
         const response = await fetch(viewPath);
@@ -83,17 +86,11 @@ export async function loadViewAndController(viewPath, controllerPath, title) {
 
         // Load and mount the controller
         const module = await import(controllerPath);
-        try {
-            if (module.mount.length >= 1) {
-                module.mount(ctx.root); // Pass only the root element
-            } else {
-                module.mount(ctx.root);
-            }
-        } catch (error) {
-            console.warn('Controller mount failed with context, falling back to root:', error);
-            module.mount(ctx.root);
+        if (typeof module.mount === 'function') {
+            module.mount(ctx);
         }
         currentController = module;
+        currentCtx = ctx;
     } catch (error) {
         console.error('Error loading view or controller:', error);
         const contentElement = document.querySelector('#content');

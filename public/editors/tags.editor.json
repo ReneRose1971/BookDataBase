@@ -1,0 +1,17 @@
+{
+  "shell": "/views/editors/shells/tags.shell.html",
+  "slots": {
+    "main": [
+      {
+        "name": "tag-fields",
+        "html": "/views/editors/parts/tag-fields.part.html"
+      }
+    ],
+    "footer": [
+      {
+        "name": "tag-actions",
+        "html": "/views/editors/parts/tag-actions.part.html"
+      }
+    ]
+  }
+}

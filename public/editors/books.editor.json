@@ -1,0 +1,29 @@
+{
+  "shell": "/views/editors/shells/books.shell.html",
+  "slots": {
+    "header": [
+      {
+        "name": "book-header",
+        "html": "/views/editors/parts/book-header.part.html"
+      }
+    ],
+    "authors": [
+      {
+        "name": "book-authors",
+        "html": "/views/editors/parts/book-authors.part.html"
+      }
+    ],
+    "lists": [
+      {
+        "name": "book-lists",
+        "html": "/views/editors/parts/book-lists.part.html"
+      }
+    ],
+    "footer": [
+      {
+        "name": "book-actions",
+        "html": "/views/editors/parts/book-actions.part.html"
+      }
+    ]
+  }
+}
