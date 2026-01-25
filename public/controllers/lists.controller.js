@@ -260,13 +260,18 @@ async function updateList(name) {
 function handleListActions(event) {
     const actionButton = event.target.closest('[data-list-action]');
     if (!actionButton) return;
-    if (actionButton.dataset.listAction === 'create') {
-        setEditorMode('create');
-    }
-    if (actionButton.dataset.listAction === 'edit') {
-        setEditorMode('edit');
-    }
-    if (actionButton.dataset.listAction === 'delete') {
-        deleteSelectedList();
+    const action = actionButton.dataset.listAction;
+    switch (action) {
+        case 'create':
+            setEditorMode('create');
+            break;
+        case 'edit':
+            setEditorMode('edit');
+            break;
+        case 'delete':
+            deleteSelectedList();
+            break;
+        default:
+            break;
     }
 }

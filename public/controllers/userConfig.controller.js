@@ -27,11 +27,9 @@ export function unmount() {
     rootElement = null;
 }
 
-// Debugging: Log API key status during load
 async function loadApiKeyStatus(rootElement) {
     try {
         const status = await fetchJson('/api/config/apis');
-        console.log('Fetched API key status:', status); // Debugging line
         openAiKeyStatus = status.openai.present;
         openLibraryKeyStatus = status.openlibrary.present;
 
@@ -41,15 +39,9 @@ async function loadApiKeyStatus(rootElement) {
     }
 }
 
-// Debugging: Log UI update details
 function updateUi(rootElement) {
     const openAiInput = rootElement.querySelector('#openai-api-key');
     const openLibraryInput = rootElement.querySelector('#openlibrary-api-key');
-
-    console.log('Updating UI with actual keys:', {
-        openAiKeyStatus,
-        openLibraryKeyStatus
-    });
 
     if (openAiInput) {
         openAiInput.value = openAiKeyStatus ? openAiKeyStatus : '';

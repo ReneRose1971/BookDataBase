@@ -208,14 +208,19 @@ export async function deleteSelectedAuthor() {
 function handleAuthorActions(event) {
     const actionButton = event.target.closest('[data-author-action]');
     if (!actionButton) return;
-    if (actionButton.dataset.authorAction === 'create') {
-        setEditorMode('create');
-    }
-    if (actionButton.dataset.authorAction === 'edit') {
-        setEditorMode('edit');
-    }
-    if (actionButton.dataset.authorAction === 'delete') {
-        deleteSelectedAuthor();
+    const action = actionButton.dataset.authorAction;
+    switch (action) {
+        case 'create':
+            setEditorMode('create');
+            break;
+        case 'edit':
+            setEditorMode('edit');
+            break;
+        case 'delete':
+            deleteSelectedAuthor();
+            break;
+        default:
+            break;
     }
 }
 

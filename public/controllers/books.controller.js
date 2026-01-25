@@ -316,13 +316,18 @@ async function setEditorMode(mode) {
 function handleBookActions(event) {
     const actionButton = event.target.closest('[data-book-action]');
     if (!actionButton) return;
-    if (actionButton.dataset.bookAction === 'create') {
-        setEditorMode('create');
-    }
-    if (actionButton.dataset.bookAction === 'edit') {
-        setEditorMode('edit');
-    }
-    if (actionButton.dataset.bookAction === 'delete') {
-        deleteSelectedBook();
+    const action = actionButton.dataset.bookAction;
+    switch (action) {
+        case 'create':
+            setEditorMode('create');
+            break;
+        case 'edit':
+            setEditorMode('edit');
+            break;
+        case 'delete':
+            deleteSelectedBook();
+            break;
+        default:
+            break;
     }
 }
