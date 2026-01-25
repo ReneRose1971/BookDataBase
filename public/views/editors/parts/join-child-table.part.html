@@ -1,0 +1,27 @@
+<div class="join-child-table editor-section editor-section-divider">
+    <label class="editor-section-label" data-join-label></label>
+    <div class="editor-table-scroll">
+        <table class="editor-table">
+            <thead data-join-table-head></thead>
+            <tbody data-join-table-body></tbody>
+        </table>
+    </div>
+    <div class="join-child-table-actions">
+        <button type="button" class="func-button" data-join-action="add"></button>
+        <button type="button" class="func-button" data-join-action="remove"></button>
+    </div>
+    <div class="modal modal-backdrop hidden" data-join-modal data-join-action="close">
+        <div class="modal-content">
+            <h3 data-join-modal-title></h3>
+            <div class="editor-field">
+                <label>
+                    <select data-join-select class="editor-input-full"></select>
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="func-button" data-join-action="confirm"></button>
+                <button type="button" class="func-button" data-join-action="cancel"></button>
+            </div>
+        </div>
+    </div>
+</div>
