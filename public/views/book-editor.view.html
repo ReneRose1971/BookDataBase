@@ -1,22 +1,22 @@
-<div class="book-editor" style="padding: 1.5rem; border: 1px solid #eee; border-radius: 6px; margin: 1.5rem 0;">
-  <h1 id="bookEditorTitle" style="margin-bottom: 1.5rem;"></h1>
-  <div style="margin-bottom: 1.5rem;">
+<div class="book-editor editor-card">
+  <h1 id="bookEditorTitle" class="editor-title"></h1>
+  <div class="editor-field">
     <label for="bookTitle">Titel:</label>
-    <input type="text" id="bookTitle" name="title" required style="width: 100%;">
+    <input type="text" id="bookTitle" name="title" required class="editor-input-full">
   </div>
 
-  <div class="author-selection-container" style="display: flex; gap: 40px; margin-top: 1.5rem; padding: 1.5rem; border: 1px solid #eee; border-radius: 6px;">
-    <div class="author-left" style="flex: 1; display: flex; flex-direction: column; gap: 1.25rem;">
+  <div class="author-selection-container">
+    <div class="author-left">
       <div>
         <label for="authorSelect">Autor auswählen:</label>
         <select id="authorSelect"></select>
       </div>
       <button type="button" id="addAuthorBtn" class="func-button">Autor hinzufügen</button>
     </div>
-    <div class="author-right" style="flex: 1; display: flex; flex-direction: column; gap: 1.25rem;">
+    <div class="author-right">
       <label>Zugewiesene Autoren:</label>
-      <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
-        <table id="assignedAuthorsTable" style="margin: 0; width: 100%;">
+      <div class="editor-table-scroll">
+        <table id="assignedAuthorsTable" class="editor-table">
           <thead>
             <tr>
               <th>Vorname</th>
@@ -30,14 +30,14 @@
     </div>
   </div>
 
-  <div id="bookListsContainer" style="margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1.5rem;">
-    <label style="font-weight: bold; margin-bottom: 0.5rem; display: block;">Bücherlisten:</label>
-    <div class="lists-checkbox-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
+  <div id="bookListsContainer" class="editor-section editor-section-divider">
+    <label class="editor-section-label">Bücherlisten:</label>
+    <div class="lists-checkbox-grid">
       <!-- List checkboxes will be rendered here -->
     </div>
   </div>
 
-  <div style="margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
+  <div class="editor-actions editor-section-divider">
     <button type="button" class="func-button" data-book-editor-action="cancel">Abbrechen</button>
     <button type="button" class="func-button" data-book-editor-action="confirm">Speichern</button>
   </div>
