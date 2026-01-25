@@ -1,6 +1,7 @@
 import { enableSingleRowSelection } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
+import { getJson, postJson, putJson, deleteJson, getErrorMessage } from '../api/api-client.js';
 
 let selectedListId = null;
 let cachedLists = [];
@@ -35,11 +36,7 @@ export function unmount() {
 
 async function fetchLists() {
     try {
-        const response = await fetch('/api/book-lists');
-        if (!response.ok) {
-            throw new Error('Failed to fetch lists');
-        }
-        const { items } = await response.json();
+        const { items } = await getJson('/api/book-lists');
         return items;
     } catch (error) {
         console.error('Error fetching lists:', error);
@@ -140,11 +137,7 @@ async function deleteSelectedList() {
     }
 
     try {
-        const response = await fetch(`/api/book-lists/${selectedListId}`);
-        if (!response.ok) {
-            throw new Error('Failed to fetch list details');
-        }
-        const list = await response.json();
+        const list = await getJson(`/api/book-lists/${selectedListId}`);
 
         if (Number(list.item.book_list_id) !== selectedListId) {
             alert('Ausgewählte Liste nicht gefunden.');
@@ -156,18 +149,14 @@ async function deleteSelectedList() {
             return;
         }
 
-        const deleteResponse = await fetch(`/api/book-lists/${selectedListId}`, {
-            method: 'DELETE'
-        });
-
-        if (deleteResponse.status === 409) {
-            const error = await deleteResponse.json();
-            alert(error.error);
-            return;
-        }
-
-        if (!deleteResponse.ok) {
-            throw new Error('Failed to delete list');
+        try {
+            await deleteJson(`/api/book-lists/${selectedListId}`);
+        } catch (error) {
+            if (error.status === 409) {
+                alert(getErrorMessage(error));
+                return;
+            }
+            throw error;
         }
 
         selectedListId = null;
@@ -215,44 +204,26 @@ function handleCancel(event) {
 
 async function createList(name) {
     try {
-        const response = await fetch('/api/book-lists', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to create list');
-        }
+        await postJson('/api/book-lists', { name });
 
         cachedLists = await fetchLists();
         renderListsTable(rootElement, cachedLists);
         removeEditor();
     } catch (error) {
-        alert(error.message);
+        alert(getErrorMessage(error, 'Failed to create list'));
         console.error('Error creating list:', error);
     }
 }
 
 async function updateList(name) {
     try {
-        const response = await fetch(`/api/book-lists/${selectedListId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update list');
-        }
+        await putJson(`/api/book-lists/${selectedListId}`, { name });
 
         cachedLists = await fetchLists();
         renderListsTable(rootElement, cachedLists);
         removeEditor();
     } catch (error) {
-        alert(error.message);
+        alert(getErrorMessage(error, 'Failed to update list'));
         console.error('Error updating list:', error);
     }
 }

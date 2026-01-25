@@ -1,6 +1,7 @@
 import { enableSingleRowSelection } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
+import { getJson, postJson, putJson, deleteJson, getErrorMessage } from '../api/api-client.js';
 
 let selectedTagId = null;
 let editorMode = 'create';
@@ -35,8 +36,7 @@ export function unmount() {
 
 async function fetchTags() {
     try {
-        const res = await fetch('/api/tags');
-        const tags = await res.json();
+        const tags = await getJson('/api/tags');
         return tags.map(tag => ({
             ...tag,
             tag_id: parseInt(tag.tag_id, 10)
@@ -163,17 +163,13 @@ async function deleteSelectedTag() {
         return;
     }
     try {
-        const res = await fetch(`/api/tags/${selectedTagId}`, { method: 'DELETE' });
-        if (res.ok) {
-            selectedTagId = null;
-            cachedTags = await fetchTags();
-            renderTagsTable(rootElement, cachedTags);
-            removeEditor();
-        } else {
-            const err = await res.json();
-            alert(err.error);
-        }
+        await deleteJson(`/api/tags/${selectedTagId}`);
+        selectedTagId = null;
+        cachedTags = await fetchTags();
+        renderTagsTable(rootElement, cachedTags);
+        removeEditor();
     } catch (e) {
+        alert(getErrorMessage(e));
         console.error(e);
     }
 }
@@ -214,38 +210,22 @@ function handleCancel(event) {
 
 async function createTag(name) {
     try {
-        const res = await fetch('/api/tags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Fehler beim Erstellen des Tags.');
-        }
+        await postJson('/api/tags', { name });
         cachedTags = await fetchTags();
         renderTagsTable(rootElement, cachedTags);
         removeEditor();
     } catch (e) {
-        alert(e.message);
+        alert(getErrorMessage(e, 'Fehler beim Erstellen des Tags.'));
     }
 }
 
 async function updateTag(name) {
     try {
-        const res = await fetch(`/api/tags/${selectedTagId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Fehler beim Aktualisieren des Tags.');
-        }
+        await putJson(`/api/tags/${selectedTagId}`, { name });
         cachedTags = await fetchTags();
         renderTagsTable(rootElement, cachedTags);
         removeEditor();
     } catch (e) {
-        alert(e.message);
+        alert(getErrorMessage(e, 'Fehler beim Aktualisieren des Tags.'));
     }
 }
