@@ -1,6 +1,7 @@
 import { enableSingleRowSelection } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
+import { createJoinChildTableController } from '../editor-runtime/join-child-table.js';
 
 let selectedBookId = null;
 let editorMode = 'create';
@@ -127,8 +128,22 @@ async function renderBookEditor(mode, bookId = null) {
     clearEditorDisposables();
 
     let assignedAuthors = [];
-    let selectedInDialogId = null;
+    let assignedLists = [];
+    let assignedTags = [];
+
+    let allAuthors = [];
+    let allLists = [];
+    let allTags = [];
+
     let authorsById = new Map();
+    let listsById = new Map();
+    let tagsById = new Map();
+
+    let bookData = null;
+
+    const getAuthorId = (author) => author.author_id ?? author.id ?? author.authorId ?? author.AuthorId;
+    const getListId = (list) => list.book_list_id ?? list.id ?? list.bookListId ?? list.BookListId;
+    const getTagId = (tag) => tag.tag_id ?? tag.id ?? tag.tagId ?? tag.TagId;
 
     const handleCancel = (event) => {
         event.preventDefault();
@@ -140,11 +155,10 @@ async function renderBookEditor(mode, bookId = null) {
         const title = titleInput.value.trim();
         if (!title || title.length < 2) return alert('Bitte einen gültigen Titel eingeben.');
         if (assignedAuthors.length === 0) return alert('Ein Buch muss mindestens einen Autor haben.');
-
-        const checkedLists = Array.from(editorRoot.querySelectorAll('input[name="book_list"]:checked')).map(cb => parseInt(cb.value));
-        if (checkedLists.length === 0) return alert('Bitte wählen Sie mindestens eine Liste aus.');
+        if (assignedLists.length === 0) return alert('Bitte wählen Sie mindestens eine Liste aus.');
 
         const authorIds = assignedAuthors.map(a => getAuthorId(a));
+        const listIds = assignedLists.map(l => getListId(l));
 
         const checkRes = await fetch(`/api/books/check-duplicate?title=${encodeURIComponent(title)}&authorIds=${JSON.stringify(authorIds)}`);
         const checkData = await checkRes.json();
@@ -160,7 +174,7 @@ async function renderBookEditor(mode, bookId = null) {
         const saveRes = await fetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, authorIds, listIds: checkedLists })
+            body: JSON.stringify({ title, authorIds, listIds })
         });
 
         if (saveRes.ok) {
@@ -195,21 +209,29 @@ async function renderBookEditor(mode, bookId = null) {
     }
 
     const titleInput = editorRoot.querySelector('#bookTitle');
-    const authorSelect = editorRoot.querySelector('#authorSelect');
-    const addAuthorBtn = editorRoot.querySelector('#addAuthorBtn');
-    const removeAuthorBtn = editorRoot.querySelector('#removeAuthorBtn');
-    const assignedTableBody = editorRoot.querySelector('#assignedAuthorsTable tbody');
-    const listsGrid = editorRoot.querySelector('.lists-checkbox-grid');
+    const authorsHost = editorRoot.querySelector('[data-editor-part="book-authors"]');
+    const listsHost = editorRoot.querySelector('[data-editor-part="book-lists"]');
+    const tagsHost = editorRoot.querySelector('[data-editor-part="book-tags"]');
 
-    const [authorsRes, listsRes] = await Promise.all([
+    const fetches = [
         fetch('/api/authors'),
-        fetch('/api/book-lists')
-    ]);
-    const allAuthors = await authorsRes.json();
-    const listsData = await listsRes.json();
-    const bookLists = listsData.items || [];
+        fetch('/api/book-lists'),
+        fetch('/api/tags')
+    ];
 
-    const getAuthorId = (author) => author.author_id ?? author.id ?? author.authorId ?? author.AuthorId;
+    if (bookId) {
+        fetches.push(fetch(`/api/books/${bookId}`));
+    }
+
+    const [authorsRes, listsRes, tagsRes, bookRes] = await Promise.all(fetches);
+    allAuthors = await authorsRes.json();
+    const listsData = await listsRes.json();
+    allLists = listsData.items || [];
+    allTags = await tagsRes.json();
+
+    if (bookId && bookRes) {
+        bookData = await bookRes.json();
+    }
 
     authorsById = new Map(
         allAuthors
@@ -218,87 +240,213 @@ async function renderBookEditor(mode, bookId = null) {
             .map(([id, author]) => [String(id), author])
     );
 
-    authorSelect.innerHTML = [
-        '<option value="">Bitte auswählen</option>',
-        ...allAuthors.map(a => {
-            const authorId = getAuthorId(a);
-            return `<option value="${authorId}">${a.first_name} ${a.last_name}</option>`;
-        })
-    ].join('');
-    listsGrid.innerHTML = bookLists.map(list => `
-        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 0;">
-            <input type="checkbox" name="book_list" value="${list.book_list_id}">
-            ${list.name}
-        </label>
-    `).join('');
+    listsById = new Map(
+        allLists
+            .map((list) => [getListId(list), list])
+            .filter(([id]) => id !== undefined && id !== null)
+            .map(([id, list]) => [String(id), list])
+    );
 
-    const updateRemoveBtnState = () => {
-        removeAuthorBtn.disabled = selectedInDialogId === null;
-    };
+    tagsById = new Map(
+        allTags
+            .map((tag) => [getTagId(tag), tag])
+            .filter(([id]) => id !== undefined && id !== null)
+            .map(([id, tag]) => [String(id), tag])
+    );
 
-    const renderDialogAuthors = () => {
-        assignedTableBody.innerHTML = assignedAuthors.map(a => {
-            const authorId = String(getAuthorId(a));
-            const selectedClass = selectedInDialogId === authorId ? 'selected' : '';
-            return `
-                <tr data-id="${authorId}" class="${selectedClass}">
-                    <td>${a.first_name}</td>
-                    <td>${a.last_name}</td>
-                </tr>
-            `;
-        }).join('');
-    };
-
-    if (bookId) {
-        const bookRes = await fetch(`/api/books/${bookId}`);
-        const bookData = await bookRes.json();
-        titleInput.value = bookData.title;
-        assignedAuthors = bookData.authors;
-        renderDialogAuthors();
-        updateRemoveBtnState();
-
-        bookData.listIds.forEach(id => {
-            const cb = editorRoot.querySelector(`input[name="book_list"][value="${id}"]`);
-            if (cb) cb.checked = true;
-        });
+    if (bookData) {
+        if (titleInput) {
+            titleInput.value = bookData.title || '';
+        }
+        assignedAuthors = Array.isArray(bookData.authors) ? bookData.authors : [];
+        if (Array.isArray(bookData.listIds)) {
+            assignedLists = allLists.filter((list) => bookData.listIds.includes(getListId(list)));
+        }
+        if (Array.isArray(bookData.tagIds)) {
+            assignedTags = allTags.filter((tag) => bookData.tagIds.includes(getTagId(tag)));
+        } else if (Array.isArray(bookData.tags)) {
+            assignedTags = bookData.tags;
+        }
     }
 
-    editorDisposables.add(enableSingleRowSelection(assignedTableBody, (id) => {
-        selectedInDialogId = id;
-        updateRemoveBtnState();
-    }));
+    const persistRelations = async (nextAuthors, nextLists) => {
+        if (!bookId) return true;
+        const title = titleInput.value.trim();
+        if (!title || title.length < 2) {
+            alert('Bitte einen gültigen Titel eingeben.');
+            return false;
+        }
+        const authorIds = nextAuthors.map(a => getAuthorId(a)).filter(id => id !== undefined && id !== null);
+        const listIds = nextLists.map(l => getListId(l)).filter(id => id !== undefined && id !== null);
 
-    editorDisposables.add(addEvent(addAuthorBtn, 'click', () => {
-        const selectedId = String(authorSelect.value).trim();
-        if (selectedId === '') {
-            alert('Bitte einen Autor auswählen.');
-            return;
+        if (authorIds.length === 0) {
+            alert('Ein Buch muss mindestens einen Autor haben.');
+            return false;
         }
-        const author = authorsById.get(selectedId);
-        if (!author) {
-            alert('Ausgewählter Autor nicht gefunden.');
-            return;
+        if (listIds.length === 0) {
+            alert('Bitte wählen Sie mindestens eine Liste aus.');
+            return false;
         }
-        const alreadyAssigned = assignedAuthors.some(a => String(getAuthorId(a)) === selectedId);
-        if (!alreadyAssigned) {
-            assignedAuthors.push(author);
-            renderDialogAuthors();
-            updateRemoveBtnState();
-        } else {
-            alert('Dieser Autor ist bereits zugewiesen.');
-        }
-    }));
 
-    editorDisposables.add(addEvent(removeAuthorBtn, 'click', () => {
-        if (selectedInDialogId !== null) {
-            assignedAuthors = assignedAuthors.filter(a => String(getAuthorId(a)) !== String(selectedInDialogId));
-            selectedInDialogId = null;
-            renderDialogAuthors();
-            updateRemoveBtnState();
-        } else {
-            alert('Bitte einen Autor auswählen.');
+        const res = await fetch(`/api/books/${bookId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, authorIds, listIds })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.error || 'Fehler beim Aktualisieren.');
+            return false;
         }
-    }));
+        return true;
+    };
+
+    const joinContext = {
+        bookId,
+        mode
+    };
+
+    const authorsController = createJoinChildTableController({
+        sectionLabel: 'Autoren',
+        columns: [
+            { header: 'Vorname', field: 'first_name' },
+            { header: 'Nachname', field: 'last_name' }
+        ],
+        key: getAuthorId,
+        formatOption: (author) => `${author.first_name} ${author.last_name}`,
+        texts: {
+            modalTitle: 'Autor auswählen',
+            messages: {
+                selectRequired: 'Bitte einen Autor auswählen.',
+                duplicate: 'Dieser Autor ist bereits zugewiesen.',
+                removeSelectRequired: 'Bitte einen Autor auswählen.',
+                removeConfirm: 'Autor wirklich entfernen?'
+            }
+        },
+        loadAssigned: async () => assignedAuthors,
+        loadAvailable: async () => allAuthors,
+        addRelation: async (ctx, authorKey) => {
+            const author = authorsById.get(authorKey);
+            if (!author) {
+                alert('Ausgewählter Autor nicht gefunden.');
+                return;
+            }
+            const nextAuthors = [...assignedAuthors, author];
+            const persisted = await persistRelations(nextAuthors, assignedLists);
+            if (!persisted) return;
+            assignedAuthors = nextAuthors;
+        },
+        removeRelation: async (ctx, authorKey) => {
+            const nextAuthors = assignedAuthors.filter(a => String(getAuthorId(a)) !== String(authorKey));
+            if (bookId && nextAuthors.length === 0) {
+                alert('Ein Buch muss mindestens einen Autor haben.');
+                return;
+            }
+            const persisted = await persistRelations(nextAuthors, assignedLists);
+            if (!persisted) return;
+            assignedAuthors = nextAuthors;
+        },
+        confirmRemoveText: (author) => {
+            if (!author) return 'Autor wirklich entfernen?';
+            return `Autor ${author.first_name} ${author.last_name} wirklich entfernen?`;
+        }
+    });
+
+    const listsController = createJoinChildTableController({
+        sectionLabel: 'Bücherlisten',
+        columns: [
+            { header: 'Liste', field: 'name' }
+        ],
+        key: getListId,
+        formatOption: (list) => list.name,
+        texts: {
+            modalTitle: 'Liste auswählen',
+            messages: {
+                selectRequired: 'Bitte eine Liste auswählen.',
+                duplicate: 'Diese Liste ist bereits zugewiesen.',
+                removeSelectRequired: 'Bitte eine Liste auswählen.',
+                removeConfirm: 'Liste wirklich entfernen?'
+            }
+        },
+        loadAssigned: async () => assignedLists,
+        loadAvailable: async () => allLists,
+        addRelation: async (ctx, listKey) => {
+            const list = listsById.get(listKey);
+            if (!list) {
+                alert('Ausgewählte Liste nicht gefunden.');
+                return;
+            }
+            const nextLists = [...assignedLists, list];
+            const persisted = await persistRelations(assignedAuthors, nextLists);
+            if (!persisted) return;
+            assignedLists = nextLists;
+        },
+        removeRelation: async (ctx, listKey) => {
+            const nextLists = assignedLists.filter(l => String(getListId(l)) !== String(listKey));
+            if (bookId && nextLists.length === 0) {
+                alert('Bitte wählen Sie mindestens eine Liste aus.');
+                return;
+            }
+            const persisted = await persistRelations(assignedAuthors, nextLists);
+            if (!persisted) return;
+            assignedLists = nextLists;
+        },
+        confirmRemoveText: (list) => {
+            if (!list) return 'Liste wirklich entfernen?';
+            return `Liste "${list.name}" wirklich entfernen?`;
+        }
+    });
+
+    const tagsController = createJoinChildTableController({
+        sectionLabel: 'Tags',
+        columns: [
+            { header: 'Tag', field: 'name' }
+        ],
+        key: getTagId,
+        formatOption: (tag) => tag.name,
+        texts: {
+            modalTitle: 'Tag auswählen',
+            messages: {
+                selectRequired: 'Bitte ein Tag auswählen.',
+                duplicate: 'Dieses Tag ist bereits zugewiesen.',
+                removeSelectRequired: 'Bitte ein Tag auswählen.',
+                removeConfirm: 'Tag wirklich entfernen?'
+            }
+        },
+        loadAssigned: async () => assignedTags,
+        loadAvailable: async () => allTags,
+        addRelation: async (ctx, tagKey) => {
+            const tag = tagsById.get(tagKey);
+            if (!tag) {
+                alert('Ausgewähltes Tag nicht gefunden.');
+                return;
+            }
+            const nextTags = [...assignedTags, tag];
+            assignedTags = nextTags;
+        },
+        removeRelation: async (ctx, tagKey) => {
+            const nextTags = assignedTags.filter(t => String(getTagId(t)) !== String(tagKey));
+            assignedTags = nextTags;
+        },
+        confirmRemoveText: (tag) => {
+            if (!tag) return 'Tag wirklich entfernen?';
+            return `Tag "${tag.name}" wirklich entfernen?`;
+        }
+    });
+
+    if (authorsHost) {
+        await authorsController.mount(authorsHost, joinContext);
+        editorDisposables.add(() => authorsController.dispose());
+    }
+    if (listsHost) {
+        await listsController.mount(listsHost, joinContext);
+        editorDisposables.add(() => listsController.dispose());
+    }
+    if (tagsHost) {
+        await tagsController.mount(tagsHost, joinContext);
+        editorDisposables.add(() => tagsController.dispose());
+    }
 }
 
 async function setEditorMode(mode) {

@@ -53,6 +53,23 @@
     gap: 10px;
 }
 
+/* Generic Join-Child-Table */
+.join-child-table {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.join-child-table-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-start;
+}
+
 /* Tabellen / Scroll Container */
 .editor-table-scroll {
     max-height: 200px;
