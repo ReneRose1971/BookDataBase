@@ -2,7 +2,7 @@ import { getApiKey } from "../../../config/config-store.js";
 import { SearchSource, normalizeTitleInput } from "../../models/search.models.js";
 import { searchGoogleBooks } from "./providers/google-books.provider.js";
 import { searchOpenLibrary } from "./providers/open-library.provider.js";
-import { buildDnbNotImplementedResult } from "./providers/dnb.provider.js";
+import { searchDnb } from "./providers/dnb.provider.js";
 
 const PROVIDERS = [SearchSource.GOOGLE_BOOKS, SearchSource.OPEN_LIBRARY, SearchSource.DNB];
 
@@ -50,8 +50,13 @@ export async function searchExternalByTitle(title, { providers } = {}) {
     }
 
     if (requestedProviders.includes(SearchSource.DNB)) {
-        const dnbResult = buildDnbNotImplementedResult();
-        providerStatus[SearchSource.DNB] = { status: "todo", count: 0, warning: dnbResult.warning };
+        try {
+            const dnbItems = await searchDnb(normalizedTitle);
+            results.push(...dnbItems);
+            providerStatus[SearchSource.DNB] = { status: "ok", count: dnbItems.length };
+        } catch (error) {
+            providerStatus[SearchSource.DNB] = { status: "error", code: error.code || "DNB_UNAVAILABLE" };
+        }
     }
 
     return { items: results, providerStatus };

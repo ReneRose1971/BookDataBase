@@ -75,6 +75,8 @@ export function createSearchResultItem({
     authors = [],
     isbn = null,
     year = null,
+    publisher = null,
+    externalId = null,
     source,
     rawPayload = null,
     itemId = crypto.randomUUID()
@@ -89,6 +91,8 @@ export function createSearchResultItem({
         authors: normalizedAuthors,
         isbn,
         year,
+        publisher,
+        externalId,
         source,
         rawPayload
     };
