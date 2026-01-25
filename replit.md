@@ -1,65 +1,362 @@
-# Buchdatenbank (Book Database)
+# Replit – KI‑Arbeitsanleitung (Frontend Buchdatenbank)
 
-## Overview
+## Geltungsbereich (wichtig)
 
-A personal book management application built with Node.js and Express. The application allows users to manage their book collection, including tracking books, authors, reading lists, and tags. It features a German-language interface designed for a single user accessing from one browser window.
+Diese Datei gilt **ausschließlich** für die Nutzung der **in Replit integrierten KI**
+(Replit AI / Replit Agent).
 
-The system follows a traditional server-rendered architecture with vanilla JavaScript handling dynamic UI updates on the client side, backed by a PostgreSQL database for persistent storage.
+Sie richtet sich **nicht** an menschliche Entwickler
+und **nicht** an andere KI‑Systeme außerhalb von Replit.
 
-## User Preferences
+---
 
-Preferred communication style: Simple, everyday language.
+## Zweck dieses Dokuments
 
-## System Architecture
+Diese Datei ist eine **verbindliche Arbeitsanweisung** für Replit AI
+im Projekt **Buchdatenbank**.
 
-### Backend Architecture
-- **Runtime**: Node.js with ES Modules (`"type": "module"`)
-- **Framework**: Express.js for HTTP routing and static file serving
-- **Database**: PostgreSQL via the `pg` library (raw queries, no ORM)
-- **Configuration**: Environment variables loaded via `dotenv`
+Ziel ist es:
+- die bestehende **Frontend‑Architektur zu schützen**
+- KI‑gestützte Änderungen **kontrollierbar und reviewbar** zu halten
+- Architektur‑Drift und unkoordinierte Refactorings zu verhindern
 
-### Frontend Architecture
-- **UI Framework**: Pico.css (CDN-loaded) - no other CSS frameworks permitted
-- **JavaScript**: Vanilla JavaScript only - no React, Vue, or other frontend frameworks
-- **State Management**: Simple centralized state pattern
-- **Styling**: CSS split across multiple files in `/public/css/` (base, layout, navigation, dataviews, components)
+> ⚠️ Dieses Dokument beschreibt **keine neue Architektur**.  
+> Es bindet Replit AI **streng** an die bestehende Architektur.
 
-### View System
-- **Pattern**: HTML partials loaded dynamically via fetch
-- **Location**: View templates in `/public/views/` with `.view.html` extension
-- **Controllers**: JavaScript modules in `/public/controllers/` with mount/unmount lifecycle
-- **Dialogs**: Native HTML `<dialog>` elements for modals
+---
 
-### Key Design Decisions
+## Projektüberblick
 
-1. **Data-Driven UI Updates**: After any CRUD operation, data is re-fetched from the server and the view is re-rendered. No manual DOM synchronization.
+Die Buchdatenbank ist eine **Single‑User Web‑Applikation** zur Verwaltung von:
 
-2. **No Inline Styles**: All CSS must go in `/public/css/` files. No `<style>` blocks in HTML.
+- Büchern
+- Autoren
+- Buchlisten
+- Tags
 
-3. **Single User Model**: No WebSockets, Server-Sent Events, or polling since the app is designed for one user in one browser window.
+Technischer Rahmen:
+- Node.js + Express (ES‑Module)
+- PostgreSQL (direktes SQL, kein ORM)
+- Vanilla JavaScript im Frontend
+- Manifest‑basiertes Editor‑System
+- Kein Framework, kein Build‑Step
 
-4. **Semantic HTML**: UI uses semantic elements (main, form, label, input, button, table) following Pico.css conventions.
+---
 
-5. **Controller Pattern**: Each view has a corresponding controller with `mount(rootElement)` and `unmount(rootElement)` functions for lifecycle management.
+## Grundregeln für Replit AI (verbindlich)
 
-### Database Schema (Partial)
-- `book_lists` table with `book_list_id`, `name`, `is_standard` columns
-- Standard lists seeded: "Gelesene Bücher" (Read Books), "Wunschliste" (Wishlist)
-- Additional tables for books, authors, and tags (structure inferred from views)
+### 1. Kein Framework, keine Toolchain
+- ❌ React, Vue, Svelte, Angular
+- ❌ Build‑Tools (Vite, Webpack, Babel)
+- ❌ Client‑State‑Frameworks
+- ✅ Vanilla JavaScript + ES‑Module
 
-## External Dependencies
+### 2. Architektur ist gegeben
+- Die bestehende Architektur wird **genutzt**, nicht verändert.
+- Neue Komponenten **fügen sich ein**, sie definieren nichts neu.
 
-### Runtime Dependencies
-- **express** (^4.22.1): Web framework for routing and middleware
-- **pg** (^8.17.1): PostgreSQL client for database operations
-- **dotenv** (^10.0.0): Environment variable management
+### 3. Backend ist tabu
+- ❌ keine neuen Endpoints
+- ❌ keine API‑Änderungen
+- ❌ keine Schema‑Änderungen
 
-### External Services
-- **PostgreSQL Database**: Primary data store, connection via `DATABASE_URL` environment variable
-- **Pico.css CDN** (unpkg.com): CSS framework loaded from CDN
+---
 
-### Required Environment Variables
-- `DATABASE_URL`: PostgreSQL connection string
-- `PGUSER`: Database user (used for connection validation)
-- `PGPASSWORD`: Database password (required, validated on startup)
-- `PORT`: Server port (defaults to 5000)
+## Maßgebliche Frontend‑Architektur
+
+Die folgende Architektur ist **bindend** und vollständig zu berücksichtigen:
+
+# Überblick
+
+Diese Anwendung lädt Views dynamisch als HTML und bindet dazu Controller ein. Die Navigation ist clientseitig (SPA) über Buttons mit `data-view`. Zusätzlich gibt es ein manifest-basiertes Editor-System, das Editor-Shells und -Parts zusammensetzt und Lifecycle/Disposal zentral behandelt. Grundlage sind `public/app.js`, `public/view-loader.js` und das Editor-Runtime-Paket unter `public/editor-runtime/`.
+
+# SPA-Navigation und View-Ladevorgang
+
+Die Navigation wird über `public/app.js` initialisiert: Klicks auf `.nav-button[data-view]` rufen `loadViewAndController()` auf. Dort werden
+
+1. ggf. der aktuelle Controller „unmounted“,
+2. die View (HTML) geladen und in `#content` eingesetzt,
+3. Fragmente innerhalb der View geladen,
+4. die Section-Headline gesetzt,
+5. der Controller dynamisch importiert und `mount(ctx)` aufgerufen.
+
+Kurzform der Abfolge (aus `loadViewAndController()`):
+
+```js
+if (currentController?.unmount) currentController.unmount(root);
+contentElement.innerHTML = html;
+await loadFragments(contentElement);
+const module = await import(controllerPath);
+module.mount?.(ctx);
+```
+
+# Welche Datei triggert was?
+
+- **`public/app.js`**: registriert die Navigation und triggert `loadViewAndController()` beim Klick auf `.nav-button[data-view]`.
+- **`public/view-loader.js`**: lädt die View-HTML, Fragments, baut `ctx`, ruft `mount()`/`unmount()` im Controller.
+- **Controller (`public/controllers/*.controller.js`)**: implementieren `mount(ctx)` und optional `unmount(root)`; verwalten View-spezifische Logik sowie Editor-Aufrufe (`openEditor`, `closeEditor`).
+- **Editor Runtime (`public/editor-runtime/*`)**: lädt Editor-Shell/Parts aus Manifesten, bindet Actions und verwaltet Disposables.
+- **Editor-Manifeste (`public/editors/*.json`)**: definieren Shell und Slots/Parts.
+
+# Lifecycle: mount/unmount
+
+- `loadViewAndController()` ruft vor einem View-Wechsel `currentController.unmount(root)` (falls vorhanden) auf.
+- Danach wird die neue View geladen und `module.mount(ctx)` aufgerufen.
+- Der Controller muss Event-Listener/Intervalle usw. in `unmount()` entfernen, falls er selbst welche anlegt.
+
+# Wie wird ctx aufgebaut und verwendet?
+
+`ctx` wird in `loadViewAndController()` erzeugt und an `mount(ctx)` übergeben:
+
+- `root`: das `#content`-Element mit der geladenen View
+- `viewName`: aus dem View-Dateinamen abgeleitet (z. B. `books`)
+- `title`: der Titel der Route
+- `navigate(view)`: Hilfsfunktion, die intern auf den passenden `.nav-button` klickt
+
+Beispiel:
+
+```js
+const ctx = {
+  root: contentElement,
+  viewName,
+  title,
+  navigate: (view) => document.querySelector(`.nav-button[data-view="${view}"]`)?.click()
+};
+```
+
+# Fragments
+
+## Was ist data-fragment?
+
+`data-fragment` ist ein Attribut für ein Ziel-Element innerhalb einer View, das auf eine HTML-Datei zeigt. `loadFragments(root)` sucht alle `[data-fragment]` innerhalb der View und ruft `loadFragment()` pro Element auf.
+
+**Wichtig:** Der Fragment-Loader verhindert explizit, dass `.view.html` (außer Editor-Views) als Fragment verwendet wird.
+
+## Wann wird es geladen?
+
+Immer nach dem Einsetzen der View-HTML: `loadViewAndController()` ruft `await loadFragments(contentElement)` auf. Aktuell sind im Verzeichnis `public/views/` keine `data-fragment`-Attribute vorhanden; der Mechanismus ist vorbereitet, aber nicht aktiv genutzt.
+
+# Editor-System (Manifest-basiert)
+
+## Was ist Shell / Slot / Part?
+
+- **Shell**: Basis-HTML für den Editor (z. B. `/views/editors/shells/books.shell.html`).
+- **Slot**: Platzhalter in der Shell mit `data-editor-slot="<slotName>"`.
+- **Part**: Ein Fragment, das in einen Slot geladen wird, definiert in den Manifesten (`public/editors/*.json`).
+
+Manifest-Beispiel (gekürzt):
+
+```json
+{
+  "shell": "/views/editors/shells/books.shell.html",
+  "slots": {
+    "header": [{ "name": "book-header", "html": "/views/editors/parts/book-header.part.html" }]
+  }
+}
+```
+
+## Wie arbeitet openEditor / closeEditor?
+
+`openEditor()`:
+
+1. `closeEditor()` wird immer zuerst aufgerufen (es gibt immer nur einen aktiven Editor).
+2. Manifest-JSON wird geladen.
+3. Shell-HTML wird in den Host gerendert.
+4. Für jeden Slot werden Parts gerendert und optional deren Module geladen.
+5. Click-Handler für `data-editor-action` wird am Host registriert.
+6. Es wird ein Objekt mit `host`, `root`, `slots`, `manifest`, `mode`, `dataContext` zurückgegeben.
+
+`closeEditor()`:
+
+- ruft `disposables.disposeAll()` auf,
+- leert das Host-Element,
+- setzt `activeEditor` zurück.
+
+## Wie funktionieren data-editor-action Buttons?
+
+`openEditor()` registriert einen Click-Handler auf dem Host. Buttons mit `data-editor-action="confirm"` oder `data-editor-action="cancel"` triggern die entsprechenden Callbacks aus dem `actions`-Objekt. `confirm` ist gegen Mehrfachklicks geschützt (lokales `confirmBusy`).
+
+Beispiel (HTML):
+
+```html
+<button class="func-button" data-editor-action="confirm">Speichern</button>
+```
+
+## Parts mit optionalem JS-Modul
+
+Ein Part kann neben `html` optional `module` definieren. Wenn vorhanden, wird das Modul dynamisch importiert.
+
+## Wie wird part.module geladen?
+
+`loadPart()` in `component-loader.js` lädt zuerst `part.html`, dann:
+
+```js
+if (part.module) {
+  const module = await import(part.module);
+  module.mount?.({ ...ctx, root: target, part });
+}
+```
+
+## Was darf mount() zurückgeben (cleanup/dispose)?
+
+`module.mount()` darf:
+
+- nichts zurückgeben,
+- eine Funktion zurückgeben (wird als Disposer registriert),
+- oder ein Objekt mit `dispose()` zurückgeben.
+
+`loadPart()` fügt den Disposer dem `disposables`-Set hinzu.
+
+## Disposables & Event-Aufräumen
+
+### Prinzip + Beispiele
+
+- `createDisposables()` sammelt Cleanup-Funktionen.
+- `addEvent()` liefert einen Disposer (removeEventListener), der in `disposables.add()` abgelegt werden kann.
+- `closeEditor()` ruft `disposeAll()` auf und leert den Host.
+
+Beispiel (Controller/Part):
+
+```js
+const disposables = createDisposables();
+const cleanup = addEvent(button, 'click', onClick);
+disposables.add(cleanup);
+```
+
+# Bekannte Grenzen / Design-Entscheidungen
+
+- Es kann **nur ein Editor gleichzeitig aktiv** sein: `openEditor()` ruft immer `closeEditor()` auf und nutzt ein globales `activeEditor`.
+- Editor-Actions sind auf `confirm`/`cancel` fest verdrahtet.
+- Fragments existieren als Mechanismus, werden aber aktuell nicht in Views verwendet.
+
+# Checkliste für neue Views/Editoren
+
+## Schritt-für-Schritt: neue View hinzufügen, neuer Editor via Manifest
+
+**Neue View:**
+1. HTML-Datei unter `public/views/<name>.view.html` anlegen.
+2. In `public/app.js` eine Route ergänzen (View-Name + Controller + Title).
+3. Optional: `data-fragment`-Container in der View platzieren und entsprechende HTML-Dateien erstellen.
+4. Controller unter `public/controllers/<name>.controller.js` mit `mount(ctx)` erstellen.
+5. In `mount(ctx)` Event-Listener mit Disposables verwalten, falls nötig.
+
+**Neuer Editor (Manifest-basiert):**
+1. Shell-HTML in `public/views/editors/shells/<editor>.shell.html` mit `data-editor-slot`-Platzhaltern erstellen.
+2. Parts in `public/views/editors/parts/<part>.part.html` anlegen.
+3. Manifest unter `public/editors/<editor>.editor.json` erstellen (shell + slots/parts).
+4. Optional: JS-Module pro Part unter `public/views/editors/parts/<part>.module.js` (oder an anderer Stelle) und `module` im Manifest eintragen.
+5. Im Controller `openEditor({ host, manifestPath, mode, dataContext, actions })` verwenden.
+6. `actions.confirm` und `actions.cancel` implementieren; Editor-Buttons müssen `data-editor-action` tragen.
+
+
+---
+
+## Controller‑Pattern
+
+- Jede View besitzt **genau einen Controller**
+- Controller exportieren:
+  - `mount(ctx)`
+  - optional `unmount(root)`
+- Controller:
+  - orchestrieren UI‑Logik
+  - öffnen/schließen Editoren
+  - enthalten **keine globale Anwendungslogik**
+
+Events:
+- werden **delegiert**
+- werden **über Disposables verwaltet**
+- werden **immer** sauber entfernt
+
+---
+
+## Editor‑System (manifest‑basiert)
+
+### Eigenschaften
+- Es existiert **immer nur ein aktiver Editor**
+- `openEditor()` schließt automatisch einen vorherigen Editor
+- Editor besteht aus:
+  - Shell
+  - Slots
+  - Parts
+- Zusammensetzung erfolgt **ausschließlich über JSON‑Manifeste**
+
+### Verbindliche Regeln
+- ❌ keine globalen DOM‑Queries außerhalb des Editor‑Hosts
+- ❌ keine globalen IDs in Editor‑Parts
+- ✅ kompletter Lifecycle wird durch `editor-runtime` gesteuert
+
+---
+
+## Disposables & Lifecycle‑Sicherheit
+
+Alle Ressourcen (Events, Timer, Observer):
+
+- müssen über `createDisposables()` registriert werden
+- müssen bei `unmount()` oder `closeEditor()` entfernt werden
+
+Beispiel:
+```js
+const disposables = createDisposables();
+disposables.add(addEvent(button, 'click', handler));
+```
+
+Unaufgeräumte Events gelten als **Bug**.
+
+---
+
+## Arbeitsweise für Replit AI (Pflicht)
+
+### Ein Task = ein Branch = ein Pull Request
+
+- ❌ keine Sammel‑Umbauten
+- ❌ kein „mach noch X dazu“
+- ❌ keine parallelen Themen
+- ✅ klar abgegrenzter Auftrag
+- ✅ eigener Branch
+- ✅ ein Pull Request
+
+### Branch‑Namensschema
+```
+ai/<kurze-beschreibung>
+```
+
+---
+
+## Was Replit AI darf
+
+- Code lesen und analysieren
+- kleine, gezielte Änderungen durchführen
+- Reviews durchführen
+- bestehende Patterns konsequent anwenden
+- Dokumentation (Markdown) ergänzen
+
+---
+
+## Was Replit AI nicht darf
+
+- Architektur verändern
+- neue Frameworks oder Libraries einführen
+- globale Patterns ersetzen
+- mehrere Themen in einem Branch vermischen
+
+---
+
+## Akzeptanzkriterien für KI‑Änderungen
+
+Eine Änderung ist **nur akzeptabel**, wenn:
+
+1. Architektur unverändert bleibt
+2. Backend/API unverändert bleibt
+3. Event‑Lifecycle korrekt ist
+4. Code lokal verständlich bleibt
+5. jede Änderung fachlich begründet ist
+
+Wenn eines davon nicht erfüllt ist → **weiter iterieren**.
+
+---
+
+## Merksatz
+
+> **Replit AI ist ein technischer Assistent, kein Mit‑Architekt.**
+
+Dieses Dokument ist verbindlich.

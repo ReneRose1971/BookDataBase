@@ -1,0 +1,11 @@
+
+    Introduce a reusable, framework-free UI component to manage n:m parent→join→child relations in the Book-Editor to replace ad-hoc authors/lists UI and add tags support.
+    Conform to the frontend architecture constraints (no build step, ES modules, disposables, event-delegation, root-scoped queries) so three instances can run simultaneously without DOM/id conflicts.
+
+Description
+
+    Added a generic factory createJoinChildTableController(config) which accepts rendering, data-provider and adapter hooks (add/remove) and manages selection, modal lifecycle, duplicate checks and event disposal; file: public/editor-runtime/join-child-table.js.
+    Added a reusable editor part template public/views/editors/parts/join-child-table.part.html and styles in public/editor-runtime/editor-runtime.css for the component layout and modal.
+    Integrated three instances into the Book-Editor by changing the editor manifest and shell and mounting one instance each for Authors/Lists/Tags in public/controllers/books.controller.js (adapters implemented there call existing /api endpoints where applicable), and updated public/editors/books.editor.json and public/views/editors/shells/books.shell.html to expose the three slots.
+    Files changed/added: public/editor-runtime/join-child-table.js, public/views/editors/parts/join-child-table.part.html, public/controllers/books.controller.js, public/editors/books.editor.json, public/views/editors/shells/books.shell.html, public/editor-runtime/editor-runtime.css; Skills used: none (no skill files were required for implementation).
+    Example configurations used in the Book-Editor: Authors -> columns: [{header:'Vorname',field:'first_name'},{header:'Nachname',field:'last_name'}], key: getAuthorId, formatOption: a => ${a.first_name} ${a.last_name}``, Lists -> columns: [{header:'Liste',field:'name'}], key: getListId, formatOption: l => l.name, Tags -> `columns: [{header:'Tag',field:'name'}], key: getTagId, formatOption: t => t.name`.

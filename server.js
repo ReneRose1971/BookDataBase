@@ -545,7 +545,7 @@ app.get('/api/books', async (req, res) => {
 });
 
 app.get('/api/books/check-duplicate', async (req, res) => {
-    const { title, authorIds } = req.query;
+    const { title, authorIds, bookId } = req.query; // bookId hinzufügen
     if (!title || !authorIds) {
         return res.status(400).json({ error: 'Titel und Autoren-IDs erforderlich.' });
     }
@@ -556,10 +556,11 @@ app.get('/api/books/check-duplicate', async (req, res) => {
             FROM books b
             JOIN book_authors ba ON b.book_id = ba.book_id
             WHERE LOWER(b.title) = LOWER($1)
+            AND ($3 IS NULL OR b.book_id <> $3) -- Aktuelles Buch ausschließen
             GROUP BY b.book_id
             HAVING ARRAY_AGG(ba.author_id::bigint ORDER BY ba.author_id) = ARRAY(SELECT unnest($2::bigint[]) ORDER BY 1);
         `;
-        const result = await pool.query(query, [title.trim(), ids]);
+        const result = await pool.query(query, [title.trim(), ids, bookId]);
         if (result.rowCount > 0) {
             res.json({ duplicate: true, book_id: result.rows[0].book_id });
         } else {
@@ -637,11 +638,17 @@ app.get('/api/books/:id', async (req, res) => {
             FROM book_book_lists
             WHERE book_id = $1
         `;
+        const tagsQuery = `
+            SELECT tag_id
+            FROM book_tags
+            WHERE book_id = $1
+        `;
 
-        const [bookRes, authorsRes, listsRes] = await Promise.all([
+        const [bookRes, authorsRes, listsRes, tagsRes] = await Promise.all([
             pool.query(bookQuery, [bookId]),
             pool.query(authorsQuery, [bookId]),
-            pool.query(listsQuery, [bookId])
+            pool.query(listsQuery, [bookId]),
+            pool.query(tagsQuery, [bookId])
         ]);
 
         if (bookRes.rowCount === 0) return res.status(404).json({ error: 'Buch nicht gefunden.' });
@@ -649,6 +656,7 @@ app.get('/api/books/:id', async (req, res) => {
         const book = bookRes.rows[0];
         book.authors = authorsRes.rows;
         book.listIds = listsRes.rows.map(r => r.book_list_id);
+        book.tagIds = tagsRes.rows.map(r => r.tag_id);
 
         res.json(book);
     } catch (error) {
@@ -657,9 +665,11 @@ app.get('/api/books/:id', async (req, res) => {
     }
 });
 
+
+
 app.put('/api/books/:id', async (req, res) => {
     const bookId = parseInt(req.params.id, 10);
-    const { title, authorIds, listIds } = req.body;
+    const { title, authorIds, listIds, tagIds } = req.body;
 
     if (isNaN(bookId) || !title || !authorIds || !Array.isArray(authorIds) || authorIds.length === 0 || !listIds || !Array.isArray(listIds) || listIds.length === 0) {
         return res.status(400).json({ error: 'Ungültige Daten.' });
@@ -682,6 +692,14 @@ app.put('/api/books/:id', async (req, res) => {
         await client.query('DELETE FROM book_book_lists WHERE book_id = $1', [bookId]);
         for (const listId of listIds) {
             await client.query('INSERT INTO book_book_lists (book_id, book_list_id) VALUES ($1, $2)', [bookId, listId]);
+        }
+
+        // Update tags
+        await client.query('DELETE FROM book_tags WHERE book_id = $1', [bookId]);
+        if (Array.isArray(tagIds) && tagIds.length > 0) {
+            for (const tagId of tagIds) {
+                await client.query('INSERT INTO book_tags (book_id, tag_id) VALUES ($1, $2)', [bookId, tagId]);
+            }
         }
 
         await client.query('COMMIT');
