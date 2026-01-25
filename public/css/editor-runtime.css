@@ -48,33 +48,3 @@
 }
 
 .lists-checkbox-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
-}
-
-/* Tabellen / Scroll Container */
-.editor-table-scroll {
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-.editor-table {
-    margin: 0;
-    width: 100%;
-}
-
-/* Button-Group / Action-Leiste */
-.editor-actions {
-    margin-top: 2rem;
-    padding-top: 1rem;
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-}
-
-.editor-section-divider {
-    border-top: 1px solid #eee;
-}
