@@ -1,37 +1,37 @@
-import { loadFragment } from '../view-loader.js';
-import { enableSingleRowSelection, fetchJson, confirmDanger } from '../ui-helpers.js';
+import { enableSingleRowSelection } from '../ui-helpers.js';
+import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
+import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
 
 let selectedListId = null;
 let cachedLists = [];
 let editorMode = 'create';
+let rootElement = null;
+let disposables = null;
 
 export async function mount(ctx) {
-    const rootElement = ctx.root || ctx;
-    // Fetch and render lists
+    rootElement = ctx.root || ctx;
+    disposables = createDisposables();
+
     cachedLists = await fetchLists();
     renderListsTable(rootElement, cachedLists);
-    removeEditor(rootElement);
+    removeEditor();
 
-    // Bind click events for table rows
-    rootElement.addEventListener('click', handleTableClick);
-    rootElement.addEventListener('click', handleListActions);
-    rootElement.addEventListener('click', handleEditorActions);
+    disposables.add(addEvent(rootElement, 'click', handleListActions));
 
-    enableSingleRowSelection(rootElement.querySelector('tbody'), (id) => {
-        selectedListId = id;
-    });
+    const tbody = rootElement.querySelector('tbody');
+    disposables.add(enableSingleRowSelection(tbody, (id) => {
+        selectedListId = Number(id);
+    }));
 }
 
-export function unmount(rootElement) {
-    // Clean up events and other resources
-    rootElement.removeEventListener('click', handleTableClick);
-    rootElement.removeEventListener('click', handleListActions);
-    rootElement.removeEventListener('click', handleEditorActions);
+export function unmount() {
+    closeEditor();
+    if (disposables) {
+        disposables.disposeAll();
+    }
+    rootElement = null;
+    selectedListId = null;
 }
-
-// Bound events:
-// - click on root (delegation)
-// - row selection via enableSingleRowSelection
 
 async function fetchLists() {
     try {
@@ -54,14 +54,12 @@ function renderListsTable(rootElement, lists) {
         return;
     }
 
-    // Clear existing rows
     tbody.innerHTML = '';
     selectedListId = null;
 
-    // Populate table with lists
     lists.forEach(list => {
         const row = document.createElement('tr');
-        row.dataset.bookListId = String(list.book_list_id);
+        row.dataset.id = String(list.book_list_id);
         row.innerHTML = `
             <td>${list.name}</td>
             <td>${list.is_standard ? 'Ja' : 'Nein'}</td>
@@ -71,21 +69,7 @@ function renderListsTable(rootElement, lists) {
     });
 }
 
-function handleTableClick(event) {
-    const row = event.target.closest('tr');
-    if (row && row.dataset.bookListId) {
-        selectedListId = parseInt(row.dataset.bookListId, 10);
-
-        // Remove 'selected' class from all rows
-        const rows = event.currentTarget.querySelectorAll('tr');
-        rows.forEach(r => r.classList.remove('selected'));
-
-        // Add 'selected' class to the clicked row
-        row.classList.add('selected');
-    }
-}
-
-async function setEditorMode(rootElement, mode) {
+async function setEditorMode(mode) {
     if (mode === 'edit') {
         if (!selectedListId) {
             alert('Keine Liste ausgewählt.');
@@ -101,23 +85,16 @@ async function setEditorMode(rootElement, mode) {
             return;
         }
         editorMode = mode;
-        await renderEditor(rootElement, selectedList.name);
+        await renderEditor(selectedList.name);
     } else {
         editorMode = mode;
-        await renderEditor(rootElement, '');
+        await renderEditor('');
     }
 }
 
-function removeEditor(rootElement) {
-    clearEditor(rootElement);
+function removeEditor() {
+    closeEditor();
     editorMode = 'create';
-}
-
-function clearEditor(rootElement) {
-    const slot = rootElement.querySelector('.booklist-name-editor-slot');
-    if (slot) {
-        slot.innerHTML = '';
-    }
 }
 
 function isDuplicateName(name, excludeListId = null) {
@@ -130,17 +107,21 @@ function isDuplicateName(name, excludeListId = null) {
     });
 }
 
-async function renderEditor(rootElement, value) {
+async function renderEditor(value) {
     const slot = rootElement.querySelector('.booklist-name-editor-slot');
     if (!slot) return;
-    clearEditor(rootElement);
-    try {
-        await loadFragment(slot, '/views/booklist-name-editor.view.html');
-    } catch (error) {
-        console.error(error);
-        alert('Booklist-Editor konnte nicht geladen werden.');
-        return;
-    }
+
+    await openEditor({
+        host: slot,
+        manifestPath: '/editors/lists.editor.json',
+        mode: editorMode,
+        dataContext: { listId: selectedListId },
+        actions: {
+            confirm: (event) => handleConfirm(event),
+            cancel: (event) => handleCancel(event)
+        }
+    });
+
     const input = rootElement.querySelector('#booklistNameEditorInput');
     if (input) {
         input.value = value;
@@ -148,7 +129,7 @@ async function renderEditor(rootElement, value) {
     }
 }
 
-async function deleteSelectedList(rootElement) {
+async function deleteSelectedList() {
     if (!selectedListId) {
         alert('Keine Liste ausgewählt.');
         return;
@@ -192,13 +173,13 @@ async function deleteSelectedList(rootElement) {
         selectedListId = null;
         cachedLists = await fetchLists();
         renderListsTable(rootElement, cachedLists);
-        removeEditor(rootElement);
+        removeEditor();
     } catch (error) {
         console.error('Error deleting list:', error);
     }
 }
 
-async function handleConfirm(event, rootElement) {
+async function handleConfirm(event) {
     event.preventDefault();
     const input = rootElement.querySelector('#booklistNameEditorInput');
     if (!input) return;
@@ -217,22 +198,22 @@ async function handleConfirm(event, rootElement) {
             alert('Eine Liste mit diesem Namen existiert bereits.');
             return;
         }
-        await updateList(rootElement, name);
+        await updateList(name);
     } else {
         if (isDuplicateName(name)) {
             alert('Eine Liste mit diesem Namen existiert bereits.');
             return;
         }
-        await createList(rootElement, name);
+        await createList(name);
     }
 }
 
-function handleCancel(event, rootElement) {
+function handleCancel(event) {
     event.preventDefault();
-    removeEditor(rootElement);
+    removeEditor();
 }
 
-async function createList(rootElement, name) {
+async function createList(name) {
     try {
         const response = await fetch('/api/book-lists', {
             method: 'POST',
@@ -247,14 +228,14 @@ async function createList(rootElement, name) {
 
         cachedLists = await fetchLists();
         renderListsTable(rootElement, cachedLists);
-        removeEditor(rootElement);
+        removeEditor();
     } catch (error) {
         alert(error.message);
         console.error('Error creating list:', error);
     }
 }
 
-async function updateList(rootElement, name) {
+async function updateList(name) {
     try {
         const response = await fetch(`/api/book-lists/${selectedListId}`, {
             method: 'PUT',
@@ -269,7 +250,7 @@ async function updateList(rootElement, name) {
 
         cachedLists = await fetchLists();
         renderListsTable(rootElement, cachedLists);
-        removeEditor(rootElement);
+        removeEditor();
     } catch (error) {
         alert(error.message);
         console.error('Error updating list:', error);
@@ -279,26 +260,13 @@ async function updateList(rootElement, name) {
 function handleListActions(event) {
     const actionButton = event.target.closest('[data-list-action]');
     if (!actionButton) return;
-    const rootElement = event.currentTarget;
     if (actionButton.dataset.listAction === 'create') {
-        setEditorMode(rootElement, 'create');
+        setEditorMode('create');
     }
     if (actionButton.dataset.listAction === 'edit') {
-        setEditorMode(rootElement, 'edit');
+        setEditorMode('edit');
     }
     if (actionButton.dataset.listAction === 'delete') {
-        deleteSelectedList(rootElement);
-    }
-}
-
-function handleEditorActions(event) {
-    const actionButton = event.target.closest('[data-booklist-editor-action]');
-    if (!actionButton) return;
-    const rootElement = event.currentTarget;
-    if (actionButton.dataset.booklistEditorAction === 'confirm') {
-        handleConfirm(event, rootElement);
-    }
-    if (actionButton.dataset.booklistEditorAction === 'cancel') {
-        handleCancel(event, rootElement);
+        deleteSelectedList();
     }
 }

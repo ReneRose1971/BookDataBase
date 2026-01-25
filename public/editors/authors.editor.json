@@ -1,0 +1,17 @@
+{
+  "shell": "/views/editors/shells/authors.shell.html",
+  "slots": {
+    "main": [
+      {
+        "name": "author-fields",
+        "html": "/views/editors/parts/author-fields.part.html"
+      }
+    ],
+    "footer": [
+      {
+        "name": "author-actions",
+        "html": "/views/editors/parts/author-actions.part.html"
+      }
+    ]
+  }
+}

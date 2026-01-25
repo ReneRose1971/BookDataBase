@@ -1,21 +1,30 @@
 import { fetchJson } from '../ui-helpers.js';
+import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
 
 let openAiKeyStatus = false;
 let openLibraryKeyStatus = false;
+let rootElement = null;
+let disposables = null;
 
-export async function mount(rootElement) {
+export async function mount(ctx) {
+    rootElement = ctx.root || ctx;
     if (!(rootElement instanceof HTMLElement)) {
         console.error('Invalid rootElement passed to mount:', rootElement);
         return;
     }
 
+    disposables = createDisposables();
+
     await loadApiKeyStatus(rootElement);
 
-    rootElement.addEventListener('click', handleButtonActions);
+    disposables.add(addEvent(rootElement, 'click', handleButtonActions));
 }
 
-export function unmount(rootElement) {
-    rootElement.removeEventListener('click', handleButtonActions);
+export function unmount() {
+    if (disposables) {
+        disposables.disposeAll();
+    }
+    rootElement = null;
 }
 
 // Debugging: Log API key status during load
@@ -58,8 +67,6 @@ function updateUi(rootElement) {
 async function handleButtonActions(event) {
     const action = event.target.dataset.apiAction;
     if (!action) return;
-
-    const rootElement = event.currentTarget;
 
     switch (action) {
         case 'save':
