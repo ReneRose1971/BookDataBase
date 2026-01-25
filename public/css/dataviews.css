@@ -97,3 +97,54 @@ tr.selected {
 .view-wrapper > table td {
     background-color: transparent;
 }
+
+.view-wrapper-search .search-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: #f8fafc;
+    padding: 1.25rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.view-wrapper-search .search-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.view-wrapper-search .search-hint {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.view-wrapper-search .search-status {
+    min-height: 1.5rem;
+    font-size: 0.9rem;
+    color: #334155;
+}
+
+.view-wrapper-search .search-status.is-error {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.view-wrapper-search .search-results h3 {
+    margin: 0 0 0.75rem;
+    color: var(--color-dark);
+}
+
+.view-wrapper-search .search-results-table {
+    width: 100%;
+}
+
+.view-wrapper-search .search-results-table table {
+    width: 100%;
+}
+
+.view-wrapper-search .search-actions-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
