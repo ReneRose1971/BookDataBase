@@ -85,7 +85,7 @@ async function saveApiKeys(rootElement) {
     const openLibraryKey = openLibraryInput.value.trim();
 
     if (!openAiKey && !openLibraryKey) {
-        displayError(rootElement, 'Mindestens ein Schlüssel muss eingegeben werden.');
+        displayError(rootElement, 'Mindestens ein Key muss eingegeben werden.');
         return;
     }
 
@@ -110,7 +110,7 @@ async function saveApiKeys(rootElement) {
         openLibraryInput.value = '';
         await loadApiKeyStatus(rootElement);
     } catch (error) {
-        displayError(rootElement, 'Fehler beim Speichern der API-Schlüssel.');
+        displayError(rootElement, 'Fehler beim Speichern der API-Keys.');
     }
 }
 
@@ -119,7 +119,7 @@ async function removeApiKey(rootElement, keyType) {
         await fetch(`/api/api-keys/${keyType}`, { method: 'DELETE' });
         await loadApiKeyStatus(rootElement);
     } catch (error) {
-        displayError(rootElement, `Fehler beim Entfernen des ${keyType} API-Schlüssels.`);
+        displayError(rootElement, `Fehler beim Entfernen des ${keyType} API-Keys.`);
     }
 }
 
