@@ -27,10 +27,6 @@ export async function mount(ctx) {
     const localButton = rootElement.querySelector('[data-search-action="local"]');
     const externalButton = rootElement.querySelector('[data-search-action="external"]');
 
-    if (externalButton) {
-        externalButton.disabled = true;
-    }
-
     disposables.add(addEvent(localButton, 'click', () => handleLocalSearch()));
     disposables.add(addEvent(externalButton, 'click', () => handleExternalSearch()));
     disposables.add(addEvent(rootElement, 'click', handleResultActions));
