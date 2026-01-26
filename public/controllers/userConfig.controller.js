@@ -38,22 +38,25 @@ async function loadApiKeyStatus(rootElement) {
         const openAiRemoveButton = rootElement.querySelector('[data-api-action="remove-openai"]');
         const googleBooksRemoveButton = rootElement.querySelector('[data-api-action="remove-googlebooks"]');
 
-        if (status.openai) {
-            openAiStatus.textContent = 'Key gespeichert';
+        const openAiPresent = Boolean(status?.openai?.present);
+        const googleBooksPresent = Boolean(status?.google_books?.present);
+
+        if (openAiPresent) {
+            openAiStatus.textContent = 'Key vorhanden';
             openAiInput.placeholder = '(Key gespeichert)';
             openAiRemoveButton.disabled = false;
         } else {
-            openAiStatus.textContent = 'Kein Key gespeichert';
+            openAiStatus.textContent = 'Kein Key vorhanden';
             openAiInput.placeholder = 'API Key eingeben';
             openAiRemoveButton.disabled = true;
         }
 
-        if (status.google_books) {
-            googleBooksStatus.textContent = 'Key gespeichert';
+        if (googleBooksPresent) {
+            googleBooksStatus.textContent = 'Key vorhanden';
             googleBooksInput.placeholder = '(Key gespeichert)';
             googleBooksRemoveButton.disabled = false;
         } else {
-            googleBooksStatus.textContent = 'Kein Key gespeichert';
+            googleBooksStatus.textContent = 'Kein Key vorhanden';
             googleBooksInput.placeholder = 'API Key eingeben';
             googleBooksRemoveButton.disabled = true;
         }
@@ -90,7 +93,7 @@ async function handleButtonActions(event) {
         case 'remove-openai':
             await removeApiKey(rootElement, 'openai');
             break;
-        case 'remove-google-books':
+        case 'remove-googlebooks':
             await removeApiKey(rootElement, 'googlebooks');
             break;
         case 'cancel':
