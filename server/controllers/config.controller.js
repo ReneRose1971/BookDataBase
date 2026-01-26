@@ -3,6 +3,12 @@ import * as configService from "../services/config.service.js";
 export async function getApiStatus(req, res) {
     try {
         const status = await configService.getStatus();
+        res.set({
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'ETag': ''
+        });
         res.json(status);
     } catch (error) {
         console.error('Error fetching API key status:', error);
@@ -30,7 +36,7 @@ export async function saveGoogleBooksKey(req, res) {
         return res.status(400).json({ error: 'Key darf nicht leer sein.' });
     }
     try {
-        await configService.saveKey('googlebooks', key);
+        await configService.setApiKey('google_books', key);
         res.status(204).send();
     } catch (error) {
         console.error('Error saving Google Books key:', error);

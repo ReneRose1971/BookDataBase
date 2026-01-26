@@ -2,10 +2,8 @@ import { Router } from "express";
 import {
     getApiStatus,
     saveOpenAiKey,
-    saveOpenLibraryKey,
     saveGoogleBooksKey,
     deleteOpenAiKey,
-    deleteOpenLibraryKey,
     deleteGoogleBooksKey
 } from "../controllers/config.controller.js";
 

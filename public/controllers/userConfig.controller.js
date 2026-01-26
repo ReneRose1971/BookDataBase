@@ -29,11 +29,34 @@ export function unmount() {
 
 async function loadApiKeyStatus(rootElement) {
     try {
-        const status = await getJson('/api/config/apis');
-        openAiKeyStatus = status.openai.present;
-        googleBooksKeyStatus = status.googlebooks.present;
+        const status = await getJson('/api/config/apis', { cache: 'no-store' });
 
-        updateUi(rootElement);
+        const openAiInput = rootElement.querySelector('#openai-api-key');
+        const googleBooksInput = rootElement.querySelector('#googlebooks-api-key');
+        const openAiStatus = rootElement.querySelector('#openai-status');
+        const googleBooksStatus = rootElement.querySelector('#googlebooks-status');
+        const openAiRemoveButton = rootElement.querySelector('[data-api-action="remove-openai"]');
+        const googleBooksRemoveButton = rootElement.querySelector('[data-api-action="remove-googlebooks"]');
+
+        if (status.openai) {
+            openAiStatus.textContent = 'Key gespeichert';
+            openAiInput.placeholder = '(Key gespeichert)';
+            openAiRemoveButton.disabled = false;
+        } else {
+            openAiStatus.textContent = 'Kein Key gespeichert';
+            openAiInput.placeholder = 'API Key eingeben';
+            openAiRemoveButton.disabled = true;
+        }
+
+        if (status.google_books) {
+            googleBooksStatus.textContent = 'Key gespeichert';
+            googleBooksInput.placeholder = '(Key gespeichert)';
+            googleBooksRemoveButton.disabled = false;
+        } else {
+            googleBooksStatus.textContent = 'Kein Key gespeichert';
+            googleBooksInput.placeholder = 'API Key eingeben';
+            googleBooksRemoveButton.disabled = true;
+        }
     } catch (error) {
         displayError(rootElement, 'Fehler beim Laden des API-Status.');
     }
@@ -41,16 +64,16 @@ async function loadApiKeyStatus(rootElement) {
 
 function updateUi(rootElement) {
     const openAiInput = rootElement.querySelector('#openai-api-key');
-    const googleBooksInput = rootElement.querySelector('#google-books-api-key');
+    const googleBooksInput = rootElement.querySelector('#googlebooks-api-key');
 
     if (openAiInput) {
-        openAiInput.value = openAiKeyStatus ? openAiKeyStatus : '';
+        openAiInput.value = openAiKeyStatus ? 'SET' : '';
     } else {
         console.error('OpenAI input field not found');
     }
 
     if (googleBooksInput) {
-        googleBooksInput.value = googleBooksKeyStatus ? googleBooksKeyStatus : '';
+        googleBooksInput.value = googleBooksKeyStatus ? 'SET' : '';
     } else {
         console.error('Google Books input field not found');
     }
@@ -78,7 +101,17 @@ async function handleButtonActions(event) {
 
 async function saveApiKeys(rootElement) {
     const openAiInput = rootElement.querySelector('#openai-api-key');
-    const googleBooksInput = rootElement.querySelector('#google-books-api-key');
+    const googleBooksInput = rootElement.querySelector('#googlebooks-api-key');
+
+    if (!openAiInput) {
+        console.error("Missing element: openai-api-key");
+        return;
+    }
+
+    if (!googleBooksInput) {
+        console.error("Missing element: googlebooks-api-key");
+        return;
+    }
 
     const openAiKey = openAiInput.value.trim();
     const googleBooksKey = googleBooksInput.value.trim();
@@ -119,7 +152,7 @@ async function removeApiKey(rootElement, keyType) {
 
 function resetUi(rootElement) {
     const openAiInput = rootElement.querySelector('#openai-api-key');
-    const googleBooksInput = rootElement.querySelector('#google-books-api-key');
+    const googleBooksInput = rootElement.querySelector('#googlebooks-api-key');
 
     if (openAiInput) openAiInput.value = '';
     if (googleBooksInput) googleBooksInput.value = '';
