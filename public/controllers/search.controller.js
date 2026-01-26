@@ -36,6 +36,7 @@ export async function mount(ctx) {
     }));
 
     setStatus('Bitte Titel eingeben.');
+    setLog('Noch keine externe Suche gestartet.');
 }
 
 export function unmount() {
@@ -62,6 +63,12 @@ function setStatus(message, { isError = false } = {}) {
     if (!statusElement) return;
     statusElement.textContent = message;
     statusElement.classList.toggle('is-error', isError);
+}
+
+function setLog(message) {
+    const logElement = rootElement?.querySelector('[data-search-log]');
+    if (!logElement) return;
+    logElement.textContent = message;
 }
 
 function escapeHtml(value) {
@@ -157,6 +164,7 @@ async function handleLocalSearch() {
     }
 
     setStatus('Lokale Suche läuft...');
+    setLog('Noch keine externe Suche gestartet.');
 
     try {
         const result = await searchLocal(title);
@@ -188,6 +196,26 @@ function buildExternalStatus(result) {
     return `Externe Suche abgeschlossen. Treffer gesamt: ${itemsCount}.`;
 }
 
+function buildProviderLog(result) {
+    const providerStatus = result.providerStatus || {};
+    const entries = Object.entries(providerStatus).map(([provider, status]) => {
+        const label = mapSourceLabel(provider);
+        if (status?.status === 'ok') {
+            const count = status?.count ?? 0;
+            return `${label}: ${count} Treffer`;
+        }
+        if (status?.status === 'error') {
+            return `${label}: Fehler`;
+        }
+        return `${label}: unbekannt`;
+    });
+
+    if (entries.length === 0) {
+        return 'Keine externen Quellen gemeldet.';
+    }
+    return entries.join('\n');
+}
+
 async function handleExternalSearch() {
     const titleInput = rootElement?.querySelector('#searchTitle');
     const title = titleInput ? titleInput.value.trim() : '';
@@ -206,6 +234,7 @@ async function handleExternalSearch() {
         sessionId = result.sessionId || sessionId;
         renderResults(result.items || []);
         setStatus(buildExternalStatus(result));
+        setLog(buildProviderLog(result));
     } catch (error) {
         if (handleEndpointError(error, '/api/search/external')) return;
         setStatus(getErrorMessage(error, 'Fehler bei der externen Suche.'), { isError: true });
