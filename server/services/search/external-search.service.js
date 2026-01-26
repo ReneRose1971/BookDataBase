@@ -23,7 +23,7 @@ export async function searchExternalByTitle(title, { providers } = {}) {
 
     if (requestedProviders.includes(SearchSource.GOOGLE_BOOKS)) {
         try {
-            const apiKey = await getApiKey("googlebooks");
+            const apiKey = await getApiKey("google_books");
             const googleBooksItems = await searchGoogleBooks(normalizedTitle, { apiKey });
             results.push(...googleBooksItems);
             providerStatus[SearchSource.GOOGLE_BOOKS] = { status: "ok", count: googleBooksItems.length };

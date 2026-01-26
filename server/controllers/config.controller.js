@@ -36,7 +36,7 @@ export async function saveGoogleBooksKey(req, res) {
         return res.status(400).json({ error: 'Key darf nicht leer sein.' });
     }
     try {
-        await configService.setApiKey('google_books', key);
+        await configService.saveKey('google_books', key);
         res.status(204).send();
     } catch (error) {
         console.error('Error saving Google Books key:', error);
@@ -56,7 +56,7 @@ export async function deleteOpenAiKey(req, res) {
 
 export async function deleteGoogleBooksKey(req, res) {
     try {
-        await configService.removeKey('googlebooks');
+        await configService.removeKey('google_books');
         res.status(204).send();
     } catch (error) {
         console.error('Error deleting Google Books key:', error);
