@@ -12,7 +12,6 @@ let rootElement = null;
 let disposables = null;
 let editorDisposables = null;
 let sessionId = null;
-let localSearchCompleted = false;
 let itemsById = new Map();
 let cachedLists = [];
 
@@ -20,16 +19,11 @@ export async function mount(ctx) {
     rootElement = ctx.root || ctx;
     disposables = createDisposables();
     sessionId = null;
-    localSearchCompleted = false;
     itemsById = new Map();
 
     const titleInput = rootElement.querySelector('#searchTitle');
     const localButton = rootElement.querySelector('[data-search-action="local"]');
     const externalButton = rootElement.querySelector('[data-search-action="external"]');
-
-    if (externalButton) {
-        externalButton.disabled = true;
-    }
 
     disposables.add(addEvent(localButton, 'click', () => handleLocalSearch()));
     disposables.add(addEvent(externalButton, 'click', () => handleExternalSearch()));
@@ -53,7 +47,6 @@ export function unmount() {
     disposables = null;
     rootElement = null;
     sessionId = null;
-    localSearchCompleted = false;
     itemsById = new Map();
 }
 
@@ -147,13 +140,6 @@ function renderResults(items = []) {
     tbody.innerHTML = rows.join('');
 }
 
-function setExternalEnabled(enabled) {
-    const externalButton = rootElement?.querySelector('[data-search-action="external"]');
-    if (externalButton) {
-        externalButton.disabled = !enabled;
-    }
-}
-
 function handleEndpointError(error, endpoint) {
     if (error && error.status === 404) {
         setStatus(`Backend-Endpoint fehlt: ${endpoint}`, { isError: true });
@@ -171,14 +157,11 @@ async function handleLocalSearch() {
     }
 
     setStatus('Lokale Suche läuft...');
-    setExternalEnabled(false);
 
     try {
         const result = await searchLocal(title);
         sessionId = result.sessionId;
-        localSearchCompleted = true;
         renderResults(result.items || []);
-        setExternalEnabled(true);
 
         if (!result.items || result.items.length === 0) {
             setStatus('Keine lokalen Treffer.');
@@ -206,19 +189,21 @@ function buildExternalStatus(result) {
 }
 
 async function handleExternalSearch() {
-    if (!localSearchCompleted) {
-        setStatus('Bitte zuerst eine lokale Suche durchführen.', { isError: true });
-        return;
-    }
-    if (!sessionId) {
-        setStatus('Keine Such-Session vorhanden. Bitte erneut lokal suchen.', { isError: true });
+    const titleInput = rootElement?.querySelector('#searchTitle');
+    const title = titleInput ? titleInput.value.trim() : '';
+    if (!sessionId && !title) {
+        setStatus('Bitte einen Titel eingeben.', { isError: true });
         return;
     }
 
     setStatus('Externe Suche läuft...');
 
     try {
-        const result = await searchExternal({ sessionId });
+        const result = await searchExternal({
+            sessionId: sessionId || undefined,
+            title: title || undefined
+        });
+        sessionId = result.sessionId || sessionId;
         renderResults(result.items || []);
         setStatus(buildExternalStatus(result));
     } catch (error) {
