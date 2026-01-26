@@ -1,8 +1,10 @@
 import { getApiKey } from "../../../config/config-store.js";
 import { SearchSource, normalizeTitleInput } from "../../models/search.models.js";
 import { searchGoogleBooks } from "./providers/google-books.provider.js";
+import { searchOpenLibrary } from "./providers/open-library.provider.js";
+import { searchDnb } from "./providers/dnb.provider.js";
 
-const PROVIDERS = [SearchSource.GOOGLE_BOOKS];
+const PROVIDERS = [SearchSource.GOOGLE_BOOKS, SearchSource.OPEN_LIBRARY, SearchSource.DNB];
 
 function normalizeProviders(requestedProviders) {
     if (!Array.isArray(requestedProviders) || requestedProviders.length === 0) {
@@ -34,6 +36,26 @@ export async function searchExternalByTitle(title, { providers } = {}) {
                 throw missingKeyError;
             }
             providerStatus[SearchSource.GOOGLE_BOOKS] = { status: "error" };
+        }
+    }
+
+    if (requestedProviders.includes(SearchSource.OPEN_LIBRARY)) {
+        try {
+            const openLibraryItems = await searchOpenLibrary(normalizedTitle);
+            results.push(...openLibraryItems);
+            providerStatus[SearchSource.OPEN_LIBRARY] = { status: "ok", count: openLibraryItems.length };
+        } catch (error) {
+            providerStatus[SearchSource.OPEN_LIBRARY] = { status: "error" };
+        }
+    }
+
+    if (requestedProviders.includes(SearchSource.DNB)) {
+        try {
+            const dnbItems = await searchDnb(normalizedTitle);
+            results.push(...dnbItems);
+            providerStatus[SearchSource.DNB] = { status: "ok", count: dnbItems.length };
+        } catch (error) {
+            providerStatus[SearchSource.DNB] = { status: "error" };
         }
     }
 

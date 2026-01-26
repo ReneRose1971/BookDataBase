@@ -11,24 +11,50 @@ function extractYear(year) {
     return null;
 }
 
-export async function searchGoogleBooks(title, { limit = 10, fetcher = fetch } = {}) {
-    const url = new URL("https://www.googleapis.com/books/v1/volumes");
-    url.searchParams.set("q", title);
-    url.searchParams.set("maxResults", String(limit));
+function pickFirst(value) {
+    if (Array.isArray(value)) {
+        return value.find((entry) => typeof entry === "string" && entry.trim()) || value[0] || "";
+    }
+    return typeof value === "string" ? value : "";
+}
+
+export async function searchOpenLibrary(title, { limit = 40, fetcher = fetch } = {}) {
+    if (!title) {
+        return [];
+    }
+
+    const url = new URL("https://openlibrary.org/search.json");
+    url.searchParams.set("title", title);
+    url.searchParams.set("limit", String(limit));
 
     const response = await fetcher(url.toString());
     if (!response.ok) {
-        const error = new Error(`Google Books request failed with ${response.status}`);
-        error.code = "GOOGLE_BOOKS_ERROR";
+        const error = new Error(`Open Library request failed with ${response.status}`);
+        error.code = "OPEN_LIBRARY_ERROR";
         throw error;
     }
 
     const data = await response.json();
-    return data.items.map((item) => ({
-        title: item.volumeInfo.title,
-        authors: item.volumeInfo.authors || [],
-        isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier || null,
-        year: item.volumeInfo.publishedDate?.split("-")[0] || null,
-        source: SearchSource.GOOGLE_BOOKS,
-    }));
+    const docs = Array.isArray(data.docs) ? data.docs : [];
+    return docs
+        .map((doc) => {
+            const titleValue = doc.title || "";
+            if (!titleValue) {
+                return null;
+            }
+            return createSearchResultItem({
+                title: titleValue,
+                authors: Array.isArray(doc.author_name) ? doc.author_name : [],
+                isbn: pickFirst(doc.isbn) || null,
+                year: extractYear(doc.first_publish_year),
+                publisher: pickFirst(doc.publisher) || null,
+                externalId: doc.key || null,
+                source: SearchSource.OPEN_LIBRARY,
+                rawPayload: {
+                    key: doc.key || null,
+                    source: "open_library"
+                }
+            });
+        })
+        .filter(Boolean);
 }
