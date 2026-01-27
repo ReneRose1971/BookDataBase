@@ -46,12 +46,18 @@ export async function searchExternal(req, res) {
 
 export async function startExternalSearch(req, res) {
     const { query, providers } = req.body;
-    if (!query || !query.trim()) {
-        return res.status(400).json({ error: "Titel darf nicht leer sein." });
+    if (query && typeof query === "object" && !Array.isArray(query)) {
+        console.warn("External search query was an object with keys:", Object.keys(query));
+    }
+    if (typeof query !== "string" || query.trim().length === 0) {
+        return res.status(400).json({
+            error: "query must be a non-empty string",
+            receivedType: typeof query
+        });
     }
 
     try {
-        const result = await externalJobService.startExternalSearchJob(query, { providers });
+        const result = await externalJobService.startExternalSearchJob(query.trim(), { providers });
         res.json(result);
     } catch (error) {
         console.error("Error starting external search job:", error);
