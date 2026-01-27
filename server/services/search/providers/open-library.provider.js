@@ -18,9 +18,16 @@ function pickFirst(value) {
     return typeof value === "string" ? value : "";
 }
 
+function createProviderError(message, code, details) {
+    const error = new Error(message);
+    error.code = code;
+    error.details = details;
+    return error;
+}
+
 export async function searchOpenLibrary(title, { limit = 40, fetcher = fetch } = {}) {
     if (!title) {
-        return [];
+        return { items: [], totalItems: null, requestUrl: null, status: 200, statusText: "No query", limit };
     }
 
     const url = new URL("https://openlibrary.org/search.json");
@@ -29,14 +36,18 @@ export async function searchOpenLibrary(title, { limit = 40, fetcher = fetch } =
 
     const response = await fetcher(url.toString());
     if (!response.ok) {
-        const error = new Error(`Open Library request failed with ${response.status}`);
-        error.code = "OPEN_LIBRARY_ERROR";
-        throw error;
+        const bodyText = await response.text();
+        throw createProviderError("OPEN_LIBRARY_ERROR", "OPEN_LIBRARY_ERROR", {
+            status: response.status,
+            statusText: response.statusText,
+            bodySnippet: bodyText.slice(0, 500),
+            requestUrl: url.toString()
+        });
     }
 
     const data = await response.json();
     const docs = Array.isArray(data.docs) ? data.docs : [];
-    return docs
+    const mappedItems = docs
         .map((doc) => {
             const titleValue = doc.title || "";
             if (!titleValue) {
@@ -57,4 +68,13 @@ export async function searchOpenLibrary(title, { limit = 40, fetcher = fetch } =
             });
         })
         .filter(Boolean);
+
+    return {
+        items: mappedItems,
+        totalItems: typeof data.numFound === "number" ? data.numFound : null,
+        requestUrl: url.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        limit
+    };
 }

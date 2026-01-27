@@ -92,15 +92,16 @@ function mapRecordToItem(record) {
     });
 }
 
-function createDnbError(message, code) {
+function createDnbError(message, code, details) {
     const error = new Error(message);
     error.code = code;
+    error.details = details;
     return error;
 }
 
 export async function searchDnb(title, { limit = 10, fetcher = fetch, timeoutMs = 8000 } = {}) {
     if (!title) {
-        return [];
+        return { items: [], totalItems: null, requestUrl: null, status: 200, statusText: "No query", limit };
     }
 
     const url = new URL("https://services.dnb.de/sru/dnb");
@@ -110,34 +111,48 @@ export async function searchDnb(title, { limit = 10, fetcher = fetch, timeoutMs 
     url.searchParams.set("maximumRecords", String(limit));
     url.searchParams.set("recordSchema", "dc");
 
-    console.log('DNB Query URL:', url.toString());
-
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     let response;
     try {
         response = await fetcher(url.toString(), { signal: controller.signal });
-        console.log('DNB Response:', response);
     } catch (error) {
-        console.error('DNB Fetch Error:', error);
-        throw createDnbError("DNB_UNAVAILABLE", "DNB_UNAVAILABLE");
+        throw createDnbError("DNB_UNAVAILABLE", "DNB_UNAVAILABLE", {
+            requestUrl: url.toString(),
+            message: error?.message
+        });
     } finally {
         clearTimeout(timeout);
     }
 
+    const responseText = await response.text();
     if (!response.ok) {
-        throw createDnbError("DNB_UNAVAILABLE", "DNB_UNAVAILABLE");
+        throw createDnbError("DNB_UNAVAILABLE", "DNB_UNAVAILABLE", {
+            status: response.status,
+            statusText: response.statusText,
+            bodySnippet: responseText.slice(0, 500),
+            requestUrl: url.toString()
+        });
     }
 
-    const text = await response.text();
     let data;
     try {
-        data = parser.parse(text);
+        data = parser.parse(responseText);
     } catch (error) {
-        throw createDnbError("DNB_BAD_RESPONSE", "DNB_BAD_RESPONSE");
+        throw createDnbError("DNB_BAD_RESPONSE", "DNB_BAD_RESPONSE", {
+            requestUrl: url.toString(),
+            bodySnippet: responseText.slice(0, 500)
+        });
     }
 
     const records = arrayify(data?.searchRetrieveResponse?.records?.record);
-    return records.map(mapRecordToItem).filter(Boolean);
+    return {
+        items: records.map(mapRecordToItem).filter(Boolean),
+        totalItems: Number(data?.searchRetrieveResponse?.numberOfRecords) || null,
+        requestUrl: url.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        limit
+    };
 }

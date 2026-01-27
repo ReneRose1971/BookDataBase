@@ -16,6 +16,29 @@ function extractYear(publishedDate) {
     return match ? Number(match[0]) : null;
 }
 
+function buildGoogleBooksUrls(title, apiKey, limit) {
+    const url = new URL("https://www.googleapis.com/books/v1/volumes");
+    url.searchParams.set("q", `intitle:${title}`);
+    url.searchParams.set("maxResults", String(limit));
+    if (apiKey) {
+        url.searchParams.set("key", apiKey);
+    }
+
+    const logUrl = new URL(url.toString());
+    if (logUrl.searchParams.has("key")) {
+        logUrl.searchParams.set("key", "REDACTED");
+    }
+
+    return { url, logUrl };
+}
+
+function createProviderError(message, code, details) {
+    const error = new Error(message);
+    error.code = code;
+    error.details = details;
+    return error;
+}
+
 export async function searchGoogleBooks(title, { apiKey, limit = 10, fetcher = fetch } = {}) {
     if (!apiKey) {
         const error = new Error("GOOGLE_BOOKS_KEY_MISSING");
@@ -23,22 +46,21 @@ export async function searchGoogleBooks(title, { apiKey, limit = 10, fetcher = f
         throw error;
     }
 
-    const url = new URL("https://www.googleapis.com/books/v1/volumes");
-    url.searchParams.set("q", `intitle:${title}`);
-    url.searchParams.set("maxResults", String(limit));
-    url.searchParams.set("key", apiKey);
-
+    const { url, logUrl } = buildGoogleBooksUrls(title, apiKey, limit);
     const response = await fetcher(url.toString());
     if (!response.ok) {
-        const error = new Error(`Google Books request failed with ${response.status}`);
-        error.code = "GOOGLE_BOOKS_ERROR";
-        throw error;
+        const bodyText = await response.text();
+        throw createProviderError("GOOGLE_BOOKS_ERROR", "GOOGLE_BOOKS_ERROR", {
+            status: response.status,
+            statusText: response.statusText,
+            bodySnippet: bodyText.slice(0, 500),
+            requestUrl: logUrl.toString()
+        });
     }
 
     const data = await response.json();
     const items = Array.isArray(data.items) ? data.items : [];
-
-    return items
+    const mappedItems = items
         .map((entry) => {
             const volumeInfo = entry.volumeInfo || {};
             const volumeTitle = volumeInfo.title || "";
@@ -58,4 +80,13 @@ export async function searchGoogleBooks(title, { apiKey, limit = 10, fetcher = f
             });
         })
         .filter(Boolean);
+
+    return {
+        items: mappedItems,
+        totalItems: typeof data.totalItems === "number" ? data.totalItems : null,
+        requestUrl: logUrl.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        limit
+    };
 }

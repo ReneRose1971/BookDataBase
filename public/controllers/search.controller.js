@@ -125,9 +125,15 @@ function formatProviderStatus(providerStatus = {}) {
     return entries
         .map(([provider, status]) => {
             const count = typeof status?.count === 'number' ? status.count : 0;
+            const total = typeof status?.total === 'number' ? status.total : null;
+            const limit = typeof status?.limit === 'number' ? status.limit : null;
             const label = mapSourceLabel(provider);
             const state = status?.status === 'ok' ? 'ok' : 'Fehler';
-            return `${label}: ${count} (${state})`;
+            const totalLabel = total !== null ? `${count}/${total}` : `${count}`;
+            const limitLabel = limit ? `Limit ${limit}` : null;
+            const httpLabel = status?.statusCode ? `HTTP ${status.statusCode}` : null;
+            const meta = [state, limitLabel, httpLabel].filter(Boolean).join(', ');
+            return `${label}: ${totalLabel} (${meta})`;
         })
         .join(' | ');
 }
@@ -140,7 +146,7 @@ function buildLogMessage({ title, counts, providerStatus }) {
     const sourceSummary = sourceEntries.length > 0
         ? sourceEntries.map(([source, count]) => `${mapSourceLabel(source)}: ${count}`).join(' | ')
         : 'Keine Trefferstatistik vorhanden.';
-    const totalText = typeof totalCount === 'number' ? `Gesamt: ${totalCount}` : '';
+    const totalText = typeof totalCount === 'number' ? `Angezeigt: ${totalCount}` : '';
     const providerSummary = formatProviderStatus(providerStatus);
 
     return [
@@ -233,7 +239,9 @@ async function handleLocalSearch() {
         renderResults(result.items);
         logSearchDetails(title, sessionId, result.items);
         const counts = { ...(result.counts || {}) };
-        counts.total = Array.isArray(result.items) ? result.items.length : 0;
+        if (typeof counts.total !== 'number') {
+            counts.total = Array.isArray(result.items) ? result.items.length : 0;
+        }
         setLog(buildLogMessage({ title, counts, providerStatus: result.providerStatus }));
         setStatus('Suche abgeschlossen.');
     } catch (error) {
@@ -263,7 +271,9 @@ async function handleExternalSearch() {
         renderResults(result.items);
         logSearchDetails(title, sessionId, result.items);
         const counts = { ...(result.counts || {}) };
-        counts.total = Array.isArray(result.items) ? result.items.length : 0;
+        if (typeof counts.total !== 'number') {
+            counts.total = Array.isArray(result.items) ? result.items.length : 0;
+        }
         setLog(buildLogMessage({ title, counts, providerStatus: result.providerStatus }));
         setStatus('Externe Suche abgeschlossen.');
     } catch (error) {

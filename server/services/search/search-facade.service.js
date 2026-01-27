@@ -23,6 +23,42 @@ function buildCounts(items) {
     }, {});
 }
 
+function scoreTitleMatch(title, normalizedQuery) {
+    if (!title || !normalizedQuery) {
+        return 0;
+    }
+    const normalizedTitle = normalizeTitleInput(title);
+    if (!normalizedTitle) {
+        return 0;
+    }
+    if (normalizedTitle === normalizedQuery) {
+        return 100;
+    }
+    if (normalizedTitle.startsWith(normalizedQuery)) {
+        return 90;
+    }
+    if (normalizedTitle.includes(normalizedQuery)) {
+        return 75;
+    }
+    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+    const titleTokens = normalizedTitle.split(" ").filter(Boolean);
+    const matches = queryTokens.filter((token) => titleTokens.includes(token)).length;
+    return matches > 0 ? 50 + matches : 0;
+}
+
+function rankItemsByTitleMatch(items, normalizedQuery) {
+    if (!normalizedQuery) {
+        return items;
+    }
+    return [...items].sort((a, b) => {
+        const scoreDelta = scoreTitleMatch(b.title, normalizedQuery) - scoreTitleMatch(a.title, normalizedQuery);
+        if (scoreDelta !== 0) {
+            return scoreDelta;
+        }
+        return (a.title || "").localeCompare(b.title || "");
+    });
+}
+
 function dedupeItems(items) {
     const seen = new Set();
     return items.filter((item) => {
@@ -41,11 +77,13 @@ function dedupeItems(items) {
 
 function buildSessionResponse(session) {
     const items = getCombinedItems(session);
+    const counts = buildCounts(items);
+    counts.total = items.length;
     return {
         sessionId: session.sessionId,
         query: session.query,
         items,
-        counts: buildCounts(items),
+        counts,
         providerStatus: session.providerStatus || {}
     };
 }
@@ -79,7 +117,9 @@ export async function runExternalSearch({ sessionId, title, providers } = {}) {
     }
 
     const externalResult = await searchExternalByTitle(session.query.title, { providers });
-    const dedupedExternal = dedupeItems(externalResult.items || []);
+    const normalizedQuery = normalizeTitleInput(session.query.title);
+    const rankedExternal = rankItemsByTitleMatch(externalResult.items || [], normalizedQuery);
+    const dedupedExternal = dedupeItems(rankedExternal);
 
     session = updateSearchSession(session.sessionId, {
         externalItems: dedupedExternal,
