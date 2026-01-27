@@ -155,89 +155,58 @@ function handleEndpointError(error, endpoint) {
     return false;
 }
 
+function clearResults() {
+    const tbody = rootElement?.querySelector('[data-search-results-body]');
+    if (tbody) {
+        tbody.innerHTML = '';
+    }
+}
+
+function logSearchDetails(title, sessionId, items) {
+    console.log('Search Title:', title);
+    console.log('Session ID:', sessionId);
+    console.log('Search Results:', items);
+}
+
 async function handleLocalSearch() {
-    const titleInput = rootElement?.querySelector('#searchTitle');
-    const title = titleInput ? titleInput.value.trim() : '';
+    clearResults();
+    const titleInput = rootElement.querySelector('#searchTitle');
+    const title = titleInput?.value?.trim();
     if (!title) {
-        setStatus('Bitte einen Titel eingeben.', { isError: true });
+        setStatus('Bitte Titel eingeben.', { isError: true });
         return;
     }
 
-    setStatus('Lokale Suche läuft...');
-    setLog('Noch keine externe Suche gestartet.');
-
+    setStatus('Suche läuft...');
     try {
         const result = await searchLocal(title);
         sessionId = result.sessionId;
-        renderResults(result.items || []);
-
-        if (!result.items || result.items.length === 0) {
-            setStatus('Keine lokalen Treffer.');
-        } else {
-            setStatus(`Lokale Treffer: ${result.items.length}.`);
-        }
+        renderResults(result.items);
+        logSearchDetails(title, sessionId, result.items);
+        setStatus('Suche abgeschlossen.');
     } catch (error) {
-        if (handleEndpointError(error, '/api/search/local')) return;
-        setStatus(getErrorMessage(error, 'Fehler bei der lokalen Suche.'), { isError: true });
+        setStatus(getErrorMessage(error), { isError: true });
     }
-}
-
-function buildExternalStatus(result) {
-    const itemsCount = Array.isArray(result.items) ? result.items.length : 0;
-    const providerStatus = result.providerStatus || {};
-    const providerLabels = Object.entries(providerStatus).map(([provider, status]) => {
-        const count = status?.count !== undefined ? ` (${status.count})` : '';
-        const statusLabel = status?.status || 'unknown';
-        return `${mapSourceLabel(provider)}: ${statusLabel}${count}`;
-    });
-    if (providerLabels.length > 0) {
-        return `Externe Suche abgeschlossen. Treffer gesamt: ${itemsCount}. Quellen: ${providerLabels.join(', ')}.`;
-    }
-    return `Externe Suche abgeschlossen. Treffer gesamt: ${itemsCount}.`;
-}
-
-function buildProviderLog(result) {
-    const providerStatus = result.providerStatus || {};
-    const entries = Object.entries(providerStatus).map(([provider, status]) => {
-        const label = mapSourceLabel(provider);
-        if (status?.status === 'ok') {
-            const count = status?.count ?? 0;
-            return `${label}: ${count} Treffer`;
-        }
-        if (status?.status === 'error') {
-            return `${label}: Fehler`;
-        }
-        return `${label}: unbekannt`;
-    });
-
-    if (entries.length === 0) {
-        return 'Keine externen Quellen gemeldet.';
-    }
-    return entries.join('\n');
 }
 
 async function handleExternalSearch() {
-    const titleInput = rootElement?.querySelector('#searchTitle');
-    const title = titleInput ? titleInput.value.trim() : '';
-    if (!sessionId && !title) {
-        setStatus('Bitte einen Titel eingeben.', { isError: true });
+    clearResults();
+    const titleInput = rootElement.querySelector('#searchTitle');
+    const title = titleInput?.value?.trim();
+    if (!title) {
+        setStatus('Bitte Titel eingeben.', { isError: true });
         return;
     }
 
     setStatus('Externe Suche läuft...');
-
     try {
-        const result = await searchExternal({
-            sessionId: sessionId || undefined,
-            title: title || undefined
-        });
-        sessionId = result.sessionId || sessionId;
-        renderResults(result.items || []);
-        setStatus(buildExternalStatus(result));
-        setLog(buildProviderLog(result));
+        const result = await searchExternal({ sessionId, title });
+        sessionId = result.sessionId;
+        renderResults(result.items);
+        logSearchDetails(title, sessionId, result.items);
+        setStatus('Externe Suche abgeschlossen.');
     } catch (error) {
-        if (handleEndpointError(error, '/api/search/external')) return;
-        setStatus(getErrorMessage(error, 'Fehler bei der externen Suche.'), { isError: true });
+        setStatus(getErrorMessage(error), { isError: true });
     }
 }
 
@@ -333,35 +302,27 @@ async function openAuthorEditor(item) {
     const applyAuthor = (index) => {
         const author = item.authors[index] || item.authors[0];
         if (!author) return;
-        if (firstNameInput) firstNameInput.value = author.firstName || '';
-        if (lastNameInput) lastNameInput.value = author.lastName || '';
+        if (author.firstName && author.lastName) {
+            firstNameInput.value = author.firstName;
+            lastNameInput.value = author.lastName;
+        }
     };
 
     if (select) {
-        select.innerHTML = item.authors
-            .map((author, index) => `<option value="${index}">${escapeHtml(formatAuthor(author) || `Autor ${index + 1}`)}</option>`)
-            .join('');
-        select.disabled = item.authors.length <= 1;
-        applyAuthor(0);
-        editorDisposables.add(addEvent(select, 'change', () => {
-            const index = Number(select.value);
-            applyAuthor(Number.isNaN(index) ? 0 : index);
-        }));
-    }
-}
+        select.innerHTML = item.authors.map((author, index) => {
+            return `<option value="${index}">${escapeHtml(formatAuthor(author))}</option>`;
+        }).join('');
+        select.value = 0;
 
-async function ensureListsLoaded() {
-    if (cachedLists.length > 0) {
-        return cachedLists;
+        editorDisposables.add(addEvent(select, 'change', (event) => {
+            const index = parseInt(event.target.value, 10);
+            if (!isNaN(index)) {
+                applyAuthor(index);
+            }
+        }));
+
+        applyAuthor(0);
     }
-    try {
-        const data = await getJson('/api/book-lists');
-        cachedLists = data.items || [];
-    } catch (error) {
-        console.error(error);
-        cachedLists = [];
-    }
-    return cachedLists;
 }
 
 async function openBookEditor(item) {
@@ -381,44 +342,21 @@ async function openBookEditor(item) {
                 event.preventDefault();
                 const editorRoot = slot.querySelector('.search-import-editor');
                 if (!editorRoot) return;
+                const form = editorRoot.querySelector('form');
+                if (!form) return;
+                const formData = new FormData(form);
 
-                const titleInput = editorRoot.querySelector('#searchImportBookTitle');
-                const title = titleInput ? titleInput.value.trim() : '';
-                if (!title) {
-                    setEditorStatus(editorRoot, 'Titel ist erforderlich.', { isError: true });
-                    return;
-                }
-
-                const authorRows = editorRoot.querySelectorAll('.search-import-author-row');
-                const authors = Array.from(authorRows).map((row) => {
-                    const firstInput = row.querySelector('.search-import-author-first');
-                    const lastInput = row.querySelector('.search-import-author-last');
-                    const firstName = firstInput ? firstInput.value.trim() : '';
-                    const lastName = lastInput ? lastInput.value.trim() : '';
+                const authors = formData.getAll('author[]').filter(Boolean).map((name) => {
+                    const [firstName, lastName] = name.split(',').map(part => part.trim());
                     return { firstName, lastName, fullName: `${firstName} ${lastName}`.trim() };
                 });
 
-                if (authors.length === 0 || authors.some((author) => !author.firstName || !author.lastName)) {
-                    setEditorStatus(editorRoot, 'Mindestens ein Autor mit Vor- und Nachname ist erforderlich.', { isError: true });
-                    return;
-                }
-
-                const listChecks = editorRoot.querySelectorAll('[data-search-import-lists] input[type=\"checkbox\"]:checked');
-                const listIds = Array.from(listChecks).map((checkbox) => Number(checkbox.value)).filter((id) => Number.isFinite(id));
-
-                if (listIds.length === 0) {
-                    setEditorStatus(editorRoot, 'Bitte mindestens eine Bücherliste auswählen.', { isError: true });
-                    return;
-                }
-
                 try {
                     await importBook({
-                        book: {
-                            title,
-                            authors,
-                            isbn: item.isbn || null
-                        },
-                        listIds,
+                        itemId: item.itemId,
+                        title: formData.get('title')?.trim(),
+                        authors,
+                        isbn: formData.get('isbn')?.trim(),
                         confirm: true
                     });
                     closeEditor();
@@ -426,7 +364,7 @@ async function openBookEditor(item) {
                     setStatus('Buch wurde übernommen.');
                 } catch (error) {
                     if (handleEndpointError(error, '/api/search/import/book')) return;
-                    setEditorStatus(editorRoot, getErrorMessage(error, 'Fehler beim Übernehmen des Buches.'), { isError: true });
+                    setEditorStatus(editorRoot, getErrorMessage(error, 'Fehler beim Übernehmen des Buchs.'), { isError: true });
                 }
             },
             cancel: async (event) => {
@@ -443,51 +381,33 @@ async function openBookEditor(item) {
     editorDisposables = createDisposables();
 
     const titleInput = editorRoot.querySelector('#searchImportBookTitle');
-    if (titleInput) {
-        titleInput.value = item.title || '';
-    }
+    const isbnInput = editorRoot.querySelector('#searchImportBookIsbn');
+    const authorSelect = editorRoot.querySelector('#searchImportBookAuthorSelect');
 
-    const authorsContainer = editorRoot.querySelector('[data-search-import-authors]');
-    const listsContainer = editorRoot.querySelector('[data-search-import-lists]');
-    let workingAuthors = Array.isArray(item.authors) && item.authors.length > 0
-        ? item.authors.map((author) => ({
-            firstName: author.firstName || '',
-            lastName: author.lastName || ''
-        }))
-        : [];
+    titleInput.value = item.title || '';
+    isbnInput.value = item.isbn || '';
 
-    const renderAuthors = () => {
-        if (!authorsContainer) return;
-        authorsContainer.innerHTML = workingAuthors.map((author, index) => `
-            <div class=\"search-import-author-row\" data-author-index=\"${index}\">\n                <input type=\"text\" class=\"search-import-author-first\" placeholder=\"Vorname\" value=\"${escapeHtml(author.firstName)}\">\n                <input type=\"text\" class=\"search-import-author-last\" placeholder=\"Nachname\" value=\"${escapeHtml(author.lastName)}\">\n                <button type=\"button\" class=\"func-button\" data-search-import-action=\"remove-author\" data-author-index=\"${index}\">Entfernen</button>\n            </div>\n        `).join('');
-    };
+    if (authorSelect) {
+        authorSelect.innerHTML = item.authors.map((author, index) => {
+            return `<option value="${index}">${escapeHtml(formatAuthor(author))}</option>`;
+        }).join('');
+        authorSelect.value = 0;
 
-    renderAuthors();
-
-    if (listsContainer) {
-        const lists = await ensureListsLoaded();
-        if (lists.length === 0) {
-            listsContainer.innerHTML = '<div>Keine Bücherlisten verfügbar.</div>';
-        } else {
-            listsContainer.innerHTML = lists.map((list) => `
-                <label class=\"search-import-list-option\">\n                    <input type=\"checkbox\" value=\"${list.book_list_id}\">\n                    ${escapeHtml(list.name)}\n                </label>\n            `).join('');
-        }
-    }
-
-    editorDisposables.add(addEvent(editorRoot, 'click', (event) => {
-        const actionButton = event.target.closest('[data-search-import-action]');
-        if (!actionButton) return;
-        const action = actionButton.dataset.searchImportAction;
-        if (action === 'add-author') {
-            workingAuthors = [...workingAuthors, { firstName: '', lastName: '' }];
-            renderAuthors();
-        }
-        if (action === 'remove-author') {
-            const index = Number(actionButton.dataset.authorIndex);
-            if (!Number.isNaN(index)) {
-                workingAuthors = workingAuthors.filter((_, idx) => idx !== index);
-                renderAuthors();
+        editorDisposables.add(addEvent(authorSelect, 'change', (event) => {
+            const index = parseInt(event.target.value, 10);
+            if (!isNaN(index)) {
+                const author = item.authors[index] || item.authors[0];
+                if (author.firstName && author.lastName) {
+                    firstNameInput.value = author.firstName;
+                    lastNameInput.value = author.lastName;
+                }
             }
+        }));
+
+        const firstAuthor = item.authors[0];
+        if (firstAuthor && firstAuthor.firstName && firstAuthor.lastName) {
+            firstNameInput.value = firstAuthor.firstName;
+            lastNameInput.value = firstAuthor.lastName;
         }
-    }));
+    }
 }

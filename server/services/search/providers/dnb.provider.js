@@ -110,13 +110,17 @@ export async function searchDnb(title, { limit = 10, fetcher = fetch, timeoutMs 
     url.searchParams.set("maximumRecords", String(limit));
     url.searchParams.set("recordSchema", "dc");
 
+    console.log('DNB Query URL:', url.toString());
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     let response;
     try {
         response = await fetcher(url.toString(), { signal: controller.signal });
+        console.log('DNB Response:', response);
     } catch (error) {
+        console.error('DNB Fetch Error:', error);
         throw createDnbError("DNB_UNAVAILABLE", "DNB_UNAVAILABLE");
     } finally {
         clearTimeout(timeout);
