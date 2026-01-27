@@ -240,16 +240,23 @@ async function handlePollExternalSearch() {
             setStatus('Externe Suche nicht gefunden.', { isError: true });
             return;
         }
+        const items = Array.isArray(result.items) ? result.items : [];
+        itemsById = new Map(items.map((item) => [item.itemId, item]));
+        cachedLists = items;
+        renderItems(items);
         setLog(buildExternalLogMessage({
             title: lastSearchTitle,
-            items: result.items,
+            items,
             providerProgress: result.providerProgress,
             state: result.state
         }));
         if (result.state === 'running') {
+            setStatus(`Externe Suche läuft... Treffer: ${items.length}`);
             scheduleExternalPolling();
         } else {
             setExternalSearchState(false);
+            const doneLabel = result.state === 'cancelled' ? 'abgebrochen' : 'abgeschlossen';
+            setStatus(`Externe Suche ${doneLabel}. Treffer: ${items.length}`);
         }
     } catch (error) {
         setExternalSearchState(false);
@@ -277,6 +284,7 @@ async function handleLocalSearch() {
     setLog('Lokale Suche läuft...');
     stopExternalPolling();
     setExternalSearchState(false);
+    externalSearchId = null;
     try {
         const result = await searchLocal(title);
         sessionId = result.sessionId;
@@ -303,14 +311,14 @@ async function handleExternalSearch() {
     setExternalSearchState(true);
     stopExternalPolling();
     try {
-        const result = await startExternalSearch({ sessionId, title });
-        sessionId = result.sessionId;
-        itemsById = new Map(result.items.map((item) => [item.itemId, item]));
-        cachedLists = result.items;
-        lastSearchTitle = result.query?.title || title;
-        renderItems(result.items);
-        setStatus(`Externe Suche abgeschlossen. Treffer: ${result.items.length}`);
-        setLog(buildLogMessage({ title: lastSearchTitle, counts: result.counts, providerStatus: result.providerStatus }));
+        const result = await startExternalSearch(title);
+        externalSearchId = result.searchId;
+        sessionId = null;
+        itemsById = new Map();
+        cachedLists = [];
+        lastSearchTitle = title;
+        renderItems([]);
+        await handlePollExternalSearch();
     } catch (error) {
         setExternalSearchState(false);
         setStatus(getErrorMessage(error, 'Externe Suche fehlgeschlagen.'), { isError: true });
