@@ -45,6 +45,60 @@ export async function loadFragments(rootElement) {
     }
 }
 
+export async function loadViewInto({ targetEl, viewPath, controllerPath, title, context = {} }) {
+    if (!targetEl) {
+        throw new Error('Target element missing for view loading.');
+    }
+    if (!viewPath) {
+        throw new Error('View path missing for view loading.');
+    }
+
+    const response = await fetch(viewPath);
+    if (!response.ok) {
+        throw new Error(`Failed to load view: ${viewPath}`);
+    }
+    const html = await response.text();
+    targetEl.innerHTML = html;
+
+    await loadFragments(targetEl);
+
+    const viewName = viewPath.split('/').pop().split('.').shift();
+    const ctx = {
+        root: targetEl,
+        viewName,
+        title,
+        ...context
+    };
+
+    let controller = null;
+    let mountResult = null;
+
+    if (controllerPath) {
+        controller = await import(controllerPath);
+        if (controller && typeof controller.mount === 'function') {
+            mountResult = await controller.mount(ctx);
+        }
+    }
+
+    const dispose = () => {
+        if (mountResult && typeof mountResult.dispose === 'function') {
+            mountResult.dispose();
+        }
+        if (controller && typeof controller.unmount === 'function') {
+            controller.unmount(ctx.root);
+        }
+        if (targetEl) {
+            targetEl.innerHTML = '';
+        }
+    };
+
+    return {
+        rootEl: targetEl,
+        controller,
+        dispose
+    };
+}
+
 // Update the section headline dynamically based on the title field
 export async function loadViewAndController(viewPath, controllerPath, title) {
     try {

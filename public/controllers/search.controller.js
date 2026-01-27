@@ -1,24 +1,22 @@
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
-import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { getErrorMessage } from '../api/api-client.js';
+import { loadViewInto } from '../view-loader.js';
 import {
     searchLocal,
     startExternalSearch,
     getExternalSearchStatus,
-    cancelExternalSearch,
-    importAuthor,
-    importBook
+    cancelExternalSearch
 } from '../services/search.service.js';
 
 let rootElement = null;
 let disposables = null;
-let editorDisposables = null;
 let sessionId = null;
 let externalSearchId = null;
 let externalSearchPoll = null;
 let itemsById = new Map();
 let cachedLists = [];
 let lastSearchTitle = '';
+let activeModal = null;
 
 export async function mount(ctx) {
     rootElement = ctx.root || ctx;
@@ -49,8 +47,7 @@ export async function mount(ctx) {
 }
 
 export function unmount() {
-    closeEditor();
-    clearEditorDisposables();
+    closeActiveModal();
     if (disposables) {
         disposables.disposeAll();
     }
@@ -60,13 +57,6 @@ export function unmount() {
     externalSearchId = null;
     stopExternalPolling();
     itemsById = new Map();
-}
-
-function clearEditorDisposables() {
-    if (editorDisposables) {
-        editorDisposables.disposeAll();
-        editorDisposables = null;
-    }
 }
 
 function setStatus(message, { isError = false } = {}) {
