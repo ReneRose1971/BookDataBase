@@ -14,12 +14,14 @@ let editorDisposables = null;
 let sessionId = null;
 let itemsById = new Map();
 let cachedLists = [];
+let lastSearchTitle = '';
 
 export async function mount(ctx) {
     rootElement = ctx.root || ctx;
     disposables = createDisposables();
     sessionId = null;
     itemsById = new Map();
+    lastSearchTitle = '';
 
     const titleInput = rootElement.querySelector('#searchTitle');
     const localButton = rootElement.querySelector('[data-search-action="local"]');
@@ -106,6 +108,51 @@ function mapSourceLabel(source) {
     }
 }
 
+function normalizeTitle(value) {
+    return String(value ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function formatProviderStatus(providerStatus = {}) {
+    const entries = Object.entries(providerStatus);
+    if (entries.length === 0) {
+        return 'Keine Provider-Details vorhanden.';
+    }
+    return entries
+        .map(([provider, status]) => {
+            const count = typeof status?.count === 'number' ? status.count : 0;
+            const label = mapSourceLabel(provider);
+            const state = status?.status === 'ok' ? 'ok' : 'Fehler';
+            return `${label}: ${count} (${state})`;
+        })
+        .join(' | ');
+}
+
+function buildLogMessage({ title, counts, providerStatus }) {
+    const totalCount = counts?.total ?? null;
+    const sourceEntries = counts && typeof counts === 'object'
+        ? Object.entries(counts).filter(([key]) => key !== 'total')
+        : [];
+    const sourceSummary = sourceEntries.length > 0
+        ? sourceEntries.map(([source, count]) => `${mapSourceLabel(source)}: ${count}`).join(' | ')
+        : 'Keine Trefferstatistik vorhanden.';
+    const totalText = typeof totalCount === 'number' ? `Gesamt: ${totalCount}` : '';
+    const providerSummary = formatProviderStatus(providerStatus);
+
+    return [
+        `Suche: "${title || '-'}"`,
+        totalText,
+        `Trefferverteilung: ${sourceSummary}`,
+        `Provider: ${providerSummary}`
+    ]
+        .filter(Boolean)
+        .join(' • ');
+}
+
 function renderResults(items = []) {
     const tbody = rootElement?.querySelector('[data-search-results-body]');
     if (!tbody) return;
@@ -178,11 +225,16 @@ async function handleLocalSearch() {
     }
 
     setStatus('Suche läuft...');
+    setLog('Lokale Suche gestartet, Ergebnisse werden geladen...');
     try {
         const result = await searchLocal(title);
         sessionId = result.sessionId;
+        lastSearchTitle = title;
         renderResults(result.items);
         logSearchDetails(title, sessionId, result.items);
+        const counts = { ...(result.counts || {}) };
+        counts.total = Array.isArray(result.items) ? result.items.length : 0;
+        setLog(buildLogMessage({ title, counts, providerStatus: result.providerStatus }));
         setStatus('Suche abgeschlossen.');
     } catch (error) {
         setStatus(getErrorMessage(error), { isError: true });
@@ -199,11 +251,20 @@ async function handleExternalSearch() {
     }
 
     setStatus('Externe Suche läuft...');
+    setLog('Externe Suche gestartet, Ergebnisse werden geladen...');
     try {
+        const normalizedTitle = normalizeTitle(title);
+        if (normalizedTitle && normalizedTitle !== normalizeTitle(lastSearchTitle)) {
+            sessionId = null;
+        }
         const result = await searchExternal({ sessionId, title });
         sessionId = result.sessionId;
+        lastSearchTitle = title;
         renderResults(result.items);
         logSearchDetails(title, sessionId, result.items);
+        const counts = { ...(result.counts || {}) };
+        counts.total = Array.isArray(result.items) ? result.items.length : 0;
+        setLog(buildLogMessage({ title, counts, providerStatus: result.providerStatus }));
         setStatus('Externe Suche abgeschlossen.');
     } catch (error) {
         setStatus(getErrorMessage(error), { isError: true });
