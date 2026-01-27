@@ -1,24 +1,22 @@
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
-import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { getErrorMessage } from '../api/api-client.js';
+import { loadViewInto } from '../view-loader.js';
 import {
     searchLocal,
     startExternalSearch,
     getExternalSearchStatus,
-    cancelExternalSearch,
-    importAuthor,
-    importBook
+    cancelExternalSearch
 } from '../services/search.service.js';
 
 let rootElement = null;
 let disposables = null;
-let editorDisposables = null;
 let sessionId = null;
 let externalSearchId = null;
 let externalSearchPoll = null;
 let itemsById = new Map();
 let cachedLists = [];
 let lastSearchTitle = '';
+let activeModal = null;
 
 export async function mount(ctx) {
     rootElement = ctx.root || ctx;
@@ -49,8 +47,7 @@ export async function mount(ctx) {
 }
 
 export function unmount() {
-    closeEditor();
-    clearEditorDisposables();
+    closeActiveModal();
     if (disposables) {
         disposables.disposeAll();
     }
@@ -60,13 +57,6 @@ export function unmount() {
     externalSearchId = null;
     stopExternalPolling();
     itemsById = new Map();
-}
-
-function clearEditorDisposables() {
-    if (editorDisposables) {
-        editorDisposables.disposeAll();
-        editorDisposables = null;
-    }
 }
 
 function setStatus(message, { isError = false } = {}) {
@@ -405,192 +395,77 @@ function handleResultActions(event) {
             return;
         }
         if (action === 'import-author') {
-            openAuthorEditor(item);
+            openAuthorEditor(item, actionButton);
         } else if (action === 'import-book') {
-            openBookEditor(item);
+            openBookEditor(item, actionButton);
         }
     }
 }
 
-function setEditorStatus(root, message, { isError = false } = {}) {
-    const statusElement = root.querySelector('[data-search-import-status]');
-    if (!statusElement) return;
-    statusElement.textContent = message;
-    statusElement.classList.toggle('is-error', isError);
-}
-
-async function openAuthorEditor(item) {
-    const slot = rootElement?.querySelector('.search-editor-slot');
-    if (!slot) return;
+async function openAuthorEditor(item, triggerEl) {
     if (!Array.isArray(item.authors) || item.authors.length === 0) {
         setStatus('Keine Autorendaten im Treffer vorhanden.', { isError: true });
         return;
     }
 
-    closeEditor();
-    clearEditorDisposables();
+    await openModalShell({
+        title: 'Autor übernehmen',
+        childViewName: 'search-import-author',
+        context: { item, setStatus },
+        triggerEl
+    });
+}
 
-    await openEditor({
-        host: slot,
-        manifestPath: '/editors/search-import-author.editor.json',
-        mode: 'create',
-        dataContext: { itemId: item.itemId },
-        actions: {
-            confirm: async (event) => {
-                event.preventDefault();
-                const editorRoot = slot.querySelector('.search-import-editor');
-                if (!editorRoot) return;
-                const firstNameInput = editorRoot.querySelector('#searchImportAuthorFirstName');
-                const lastNameInput = editorRoot.querySelector('#searchImportAuthorLastName');
-                const firstName = firstNameInput ? firstNameInput.value.trim() : '';
-                const lastName = lastNameInput ? lastNameInput.value.trim() : '';
+async function openBookEditor(item, triggerEl) {
+    await openModalShell({
+        title: 'Buch übernehmen',
+        childViewName: 'search-import-book',
+        context: { item, setStatus, searchId: externalSearchId || null, sessionId: sessionId || null },
+        triggerEl
+    });
+}
 
-                if (!firstName || !lastName) {
-                    setEditorStatus(editorRoot, 'Vor- und Nachname sind erforderlich.', { isError: true });
-                    return;
-                }
+async function openModalShell({ title, childViewName, context, triggerEl }) {
+    closeActiveModal();
 
-                try {
-                    await importAuthor({
-                        author: { firstName, lastName, fullName: `${firstName} ${lastName}`.trim() },
-                        confirm: true
-                    });
-                    closeEditor();
-                    clearEditorDisposables();
-                    setStatus('Autor wurde übernommen.');
-                } catch (error) {
-                    if (handleEndpointError(error, '/api/search/import/author')) return;
-                    setEditorStatus(editorRoot, getErrorMessage(error, 'Fehler beim Übernehmen des Autors.'), { isError: true });
-                }
-            },
-            cancel: async (event) => {
-                event.preventDefault();
-                closeEditor();
-                clearEditorDisposables();
-            }
-        }
+    const modalHost = document.createElement('div');
+    document.body.appendChild(modalHost);
+
+    const modalHandle = await loadViewInto({
+        targetEl: modalHost,
+        viewPath: '/views/modal/modal-shell.view.html',
+        controllerPath: '/controllers/modal-shell.controller.js'
     });
 
-    const editorRoot = slot.querySelector('.search-import-editor');
-    if (!editorRoot) return;
+    activeModal = modalHandle;
 
-    editorDisposables = createDisposables();
-
-    const select = editorRoot.querySelector('#searchImportAuthorSelect');
-    const firstNameInput = editorRoot.querySelector('#searchImportAuthorFirstName');
-    const lastNameInput = editorRoot.querySelector('#searchImportAuthorLastName');
-
-    const applyAuthor = (index) => {
-        const author = item.authors[index] || item.authors[0];
-        if (!author) return;
-        if (author.firstName && author.lastName) {
-            firstNameInput.value = author.firstName;
-            lastNameInput.value = author.lastName;
-        }
-    };
-
-    if (select) {
-        select.innerHTML = item.authors.map((author, index) => {
-            return `<option value="${index}">${escapeHtml(formatAuthor(author))}</option>`;
-        }).join('');
-        select.value = 0;
-
-        editorDisposables.add(addEvent(select, 'change', (event) => {
-            const index = parseInt(event.target.value, 10);
-            if (!isNaN(index)) {
-                applyAuthor(index);
+    if (modalHandle.controller && typeof modalHandle.controller.open === 'function') {
+        modalHandle.controller.open({
+            title,
+            childViewName,
+            context,
+            triggerEl,
+            onClose: () => {
+                modalHandle.dispose();
+                if (modalHost.parentNode) {
+                    modalHost.parentNode.removeChild(modalHost);
+                }
+                activeModal = null;
             }
-        }));
-
-        applyAuthor(0);
+        });
     }
 }
 
-async function openBookEditor(item) {
-    const slot = rootElement?.querySelector('.search-editor-slot');
-    if (!slot) return;
-
-    closeEditor();
-    clearEditorDisposables();
-
-    await openEditor({
-        host: slot,
-        manifestPath: '/editors/search-import-book.editor.json',
-        mode: 'create',
-        dataContext: { itemId: item.itemId },
-        actions: {
-            confirm: async (event) => {
-                event.preventDefault();
-                const editorRoot = slot.querySelector('.search-import-editor');
-                if (!editorRoot) return;
-                const form = editorRoot.querySelector('form');
-                if (!form) return;
-                const formData = new FormData(form);
-
-                const authors = formData.getAll('author[]').filter(Boolean).map((name) => {
-                    const [firstName, lastName] = name.split(',').map(part => part.trim());
-                    return { firstName, lastName, fullName: `${firstName} ${lastName}`.trim() };
-                });
-
-                try {
-                    await importBook({
-                        itemId: item.itemId,
-                        searchId: externalSearchId || null,
-                        sessionId: sessionId || null,
-                        title: formData.get('title')?.trim(),
-                        authors,
-                        isbn: formData.get('isbn')?.trim(),
-                        confirm: true
-                    });
-                    closeEditor();
-                    clearEditorDisposables();
-                    setStatus('Buch wurde übernommen.');
-                } catch (error) {
-                    if (handleEndpointError(error, '/api/search/import/book')) return;
-                    setEditorStatus(editorRoot, getErrorMessage(error, 'Fehler beim Übernehmen des Buchs.'), { isError: true });
-                }
-            },
-            cancel: async (event) => {
-                event.preventDefault();
-                closeEditor();
-                clearEditorDisposables();
-            }
-        }
-    });
-
-    const editorRoot = slot.querySelector('.search-import-editor');
-    if (!editorRoot) return;
-
-    editorDisposables = createDisposables();
-
-    const titleInput = editorRoot.querySelector('#searchImportBookTitle');
-    const isbnInput = editorRoot.querySelector('#searchImportBookIsbn');
-    const authorSelect = editorRoot.querySelector('#searchImportBookAuthorSelect');
-
-    titleInput.value = item.title || '';
-    isbnInput.value = item.isbn || '';
-
-    if (authorSelect) {
-        authorSelect.innerHTML = item.authors.map((author, index) => {
-            return `<option value="${index}">${escapeHtml(formatAuthor(author))}</option>`;
-        }).join('');
-        authorSelect.value = 0;
-
-        editorDisposables.add(addEvent(authorSelect, 'change', (event) => {
-            const index = parseInt(event.target.value, 10);
-            if (!isNaN(index)) {
-                const author = item.authors[index] || item.authors[0];
-                if (author.firstName && author.lastName) {
-                    firstNameInput.value = author.firstName;
-                    lastNameInput.value = author.lastName;
-                }
-            }
-        }));
-
-        const firstAuthor = item.authors[0];
-        if (firstAuthor && firstAuthor.firstName && firstAuthor.lastName) {
-            firstNameInput.value = firstAuthor.firstName;
-            lastNameInput.value = firstAuthor.lastName;
+function closeActiveModal() {
+    if (!activeModal) return;
+    if (activeModal.controller && typeof activeModal.controller.close === 'function') {
+        activeModal.controller.close({ skipFocusRestore: true, skipOnClose: true });
+        activeModal.dispose();
+    } else {
+        activeModal.dispose();
+        if (activeModal.rootEl && activeModal.rootEl.parentNode) {
+            activeModal.rootEl.parentNode.removeChild(activeModal.rootEl);
         }
     }
+    activeModal = null;
 }
