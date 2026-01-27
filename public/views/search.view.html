@@ -17,13 +17,37 @@
 
         <section class="search-results">
             <h3>Ergebnisse</h3>
+            <div class="search-results-controls">
+                <div class="search-results-summary" data-search-results-summary>Treffer: 0</div>
+                <div class="search-results-pagination" data-search-pagination>
+                    <div class="search-pagination-info" data-search-pagination-info>Seite 1 von 1</div>
+                    <div class="search-pagination-actions">
+                        <button class="func-button" type="button" data-page-action="first">« Erste</button>
+                        <button class="func-button" type="button" data-page-action="prev">‹ Zurück</button>
+                        <button class="func-button" type="button" data-page-action="next">Weiter ›</button>
+                        <button class="func-button" type="button" data-page-action="last">Letzte »</button>
+                        <label class="search-pagination-size">
+                            <span>Pro Seite</span>
+                            <select data-page-size>
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            </div>
             <div class="search-results-table">
                 <table>
                     <thead>
                         <tr>
                             <th>Quelle</th>
-                            <th>Titel</th>
-                            <th>Autor(en)</th>
+                            <th class="search-sortable" data-sort-key="title">
+                                Titel <span class="search-sort-indicator" data-sort-indicator="title"></span>
+                            </th>
+                            <th class="search-sortable" data-sort-key="author">
+                                Autor(en) <span class="search-sort-indicator" data-sort-indicator="author"></span>
+                            </th>
                             <th>ISBN</th>
                             <th>Aktionen</th>
                         </tr>

@@ -145,6 +145,62 @@ tr.selected {
     color: var(--color-dark);
 }
 
+.view-wrapper-search .search-results-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.view-wrapper-search .search-results-summary {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.view-wrapper-search .search-results-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.view-wrapper-search .search-pagination-info {
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+.view-wrapper-search .search-pagination-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.view-wrapper-search .search-pagination-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+.view-wrapper-search .search-pagination-size select {
+    padding: 0.15rem 0.35rem;
+}
+
+.view-wrapper-search .search-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.view-wrapper-search .search-sort-indicator {
+    font-size: 0.75rem;
+    margin-left: 0.25rem;
+    color: #64748b;
+}
+
 .view-wrapper-search .search-results-table {
     width: 100%;
 }

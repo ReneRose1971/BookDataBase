@@ -14,36 +14,54 @@ let sessionId = null;
 let externalSearchId = null;
 let externalSearchPoll = null;
 let itemsById = new Map();
+let itemIndexById = new Map();
+let allItems = [];
 let cachedLists = [];
 let lastSearchTitle = '';
 let activeModal = null;
+let isExternalSearchRunning = false;
+const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_SORT = { key: 'title', dir: 'asc' };
+let sortState = { ...DEFAULT_SORT };
+let paging = { pageSize: DEFAULT_PAGE_SIZE, page: 1 };
 
 export async function mount(ctx) {
     rootElement = ctx.root || ctx;
     disposables = createDisposables();
     sessionId = null;
     itemsById = new Map();
+    itemIndexById = new Map();
+    allItems = [];
+    cachedLists = [];
+    sortState = { ...DEFAULT_SORT };
+    paging = { pageSize: DEFAULT_PAGE_SIZE, page: 1 };
     lastSearchTitle = '';
 
     const titleInput = rootElement.querySelector('#searchTitle');
     const localButton = rootElement.querySelector('[data-search-action="local"]');
     const externalButton = rootElement.querySelector('[data-search-action="external"]');
     const cancelButton = rootElement.querySelector('[data-search-action="cancel-external"]');
+    const pageSizeSelect = rootElement.querySelector('[data-page-size]');
 
     disposables.add(addEvent(localButton, 'click', () => handleLocalSearch()));
     disposables.add(addEvent(externalButton, 'click', () => handleExternalSearch()));
     disposables.add(addEvent(cancelButton, 'click', () => handleCancelExternalSearch()));
-    disposables.add(addEvent(rootElement, 'click', handleResultActions));
+    disposables.add(addEvent(rootElement, 'click', handleRootClick));
     disposables.add(addEvent(titleInput, 'keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
             handleLocalSearch();
         }
     }));
+    if (pageSizeSelect) {
+        pageSizeSelect.value = String(paging.pageSize);
+        disposables.add(addEvent(pageSizeSelect, 'change', (event) => handlePageSizeChange(event)));
+    }
 
     setStatus('Bitte Titel eingeben.');
     setLog('Noch keine externe Suche gestartet.');
     setExternalSearchState(false);
+    updateResultsView();
 }
 
 export function unmount() {
@@ -57,6 +75,8 @@ export function unmount() {
     externalSearchId = null;
     stopExternalPolling();
     itemsById = new Map();
+    itemIndexById = new Map();
+    allItems = [];
 }
 
 function setStatus(message, { isError = false } = {}) {
@@ -75,12 +95,14 @@ function setLog(message) {
 function setExternalSearchState(isRunning) {
     const externalButton = rootElement?.querySelector('[data-search-action="external"]');
     const cancelButton = rootElement?.querySelector('[data-search-action="cancel-external"]');
+    isExternalSearchRunning = isRunning;
     if (externalButton) {
         externalButton.disabled = isRunning;
     }
     if (cancelButton) {
         cancelButton.disabled = !isRunning;
     }
+    updateResultsView();
 }
 
 function escapeHtml(value) {
@@ -125,6 +147,82 @@ function normalizeTitle(value) {
         .replace(/[^\p{L}\p{N}]+/gu, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function normalizeSortValue(value) {
+    return String(value ?? '')
+        .trim()
+        .toLocaleLowerCase('de-DE')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getAuthorSortValue(authors) {
+    if (Array.isArray(authors) && authors.length > 0) {
+        const firstAuthor = authors[0];
+        if (typeof firstAuthor === 'string') {
+            return firstAuthor;
+        }
+        return formatAuthor(firstAuthor);
+    }
+    if (typeof authors === 'string') {
+        return authors;
+    }
+    return '';
+}
+
+function getSortKey(item) {
+    if (sortState?.key === 'author') {
+        return normalizeSortValue(getAuthorSortValue(item.authors));
+    }
+    return normalizeSortValue(item.title);
+}
+
+function getSortedItems(items) {
+    if (!sortState?.key) {
+        return [...items];
+    }
+    const direction = sortState.dir === 'desc' ? -1 : 1;
+    return items
+        .map((item, idx) => ({ item, idx, key: getSortKey(item) }))
+        .sort((a, b) => {
+            const primary = a.key.localeCompare(b.key, 'de', { sensitivity: 'base' });
+            if (primary !== 0) {
+                return primary * direction;
+            }
+            return (a.idx - b.idx) * direction;
+        })
+        .map((entry) => entry.item);
+}
+
+function getTotalPages(totalCount) {
+    if (totalCount === 0) {
+        return 0;
+    }
+    return Math.ceil(totalCount / paging.pageSize);
+}
+
+function clampPage(page, totalPages) {
+    if (totalPages === 0) {
+        return 1;
+    }
+    return Math.min(Math.max(page, 1), totalPages);
+}
+
+function getPagedItems(items) {
+    const totalCount = items.length;
+    const totalPages = getTotalPages(totalCount);
+    paging.page = clampPage(paging.page, totalPages);
+    if (totalPages === 0) {
+        return { pagedItems: [], totalCount, totalPages };
+    }
+    const startIndex = (paging.page - 1) * paging.pageSize;
+    const endIndex = startIndex + paging.pageSize;
+    return {
+        pagedItems: items.slice(startIndex, endIndex),
+        totalCount,
+        totalPages
+    };
 }
 
 function formatProviderStatus(providerStatus = {}) {
@@ -215,6 +313,86 @@ function buildExternalLogMessage({ title, items, providerProgress, state }) {
         .join(' • ');
 }
 
+function updateItems(items = [], { replace = false } = {}) {
+    if (replace) {
+        allItems = [];
+        itemsById = new Map();
+        itemIndexById = new Map();
+    }
+    if (!Array.isArray(items)) {
+        cachedLists = [...allItems];
+        return;
+    }
+    items.forEach((item) => {
+        if (!item?.itemId) return;
+        if (itemIndexById.has(item.itemId)) {
+            const index = itemIndexById.get(item.itemId);
+            allItems[index] = item;
+            itemsById.set(item.itemId, item);
+        } else {
+            itemIndexById.set(item.itemId, allItems.length);
+            allItems.push(item);
+            itemsById.set(item.itemId, item);
+        }
+    });
+    cachedLists = [...allItems];
+}
+
+function updateResultsView(items = allItems) {
+    const sortedItems = getSortedItems(items);
+    const { pagedItems, totalCount, totalPages } = getPagedItems(sortedItems);
+    renderResultsSummary(totalCount);
+    renderPagination(totalPages);
+    renderSortIndicators();
+    renderItems(pagedItems, totalCount);
+}
+
+function renderResultsSummary(totalCount) {
+    const summaryElement = rootElement?.querySelector('[data-search-results-summary]');
+    if (!summaryElement) return;
+    const loadingSuffix = isExternalSearchRunning ? ' (lädt …)' : '';
+    summaryElement.textContent = `Treffer: ${totalCount}${loadingSuffix}`;
+}
+
+function renderPagination(totalPages) {
+    const paginationElement = rootElement?.querySelector('[data-search-pagination]');
+    const infoElement = rootElement?.querySelector('[data-search-pagination-info]');
+    if (!paginationElement || !infoElement) return;
+    if (totalPages === 0) {
+        paginationElement.style.display = 'none';
+        return;
+    }
+    paginationElement.style.display = '';
+    infoElement.textContent = `Seite ${paging.page} von ${totalPages}`;
+    const disableFirst = paging.page <= 1;
+    const disableLast = paging.page >= totalPages;
+    setPaginationButtonState('first', disableFirst);
+    setPaginationButtonState('prev', disableFirst);
+    setPaginationButtonState('next', disableLast);
+    setPaginationButtonState('last', disableLast);
+}
+
+function setPaginationButtonState(action, disabled) {
+    const button = rootElement?.querySelector(`[data-page-action="${action}"]`);
+    if (button) {
+        button.disabled = disabled;
+    }
+}
+
+function renderSortIndicators() {
+    const headers = rootElement?.querySelectorAll('[data-sort-key]') || [];
+    headers.forEach((header) => {
+        const key = header.getAttribute('data-sort-key');
+        const indicator = header.querySelector('[data-sort-indicator]');
+        if (!indicator) return;
+        if (sortState?.key === key) {
+            indicator.textContent = sortState.dir === 'desc' ? '▼' : '▲';
+        } else {
+            indicator.textContent = '';
+        }
+    });
+}
+
 function stopExternalPolling() {
     if (externalSearchPoll) {
         clearTimeout(externalSearchPoll);
@@ -240,10 +418,8 @@ async function handlePollExternalSearch() {
             setStatus('Externe Suche nicht gefunden.', { isError: true });
             return;
         }
-        const items = Array.isArray(result.items) ? result.items : [];
-        itemsById = new Map(items.map((item) => [item.itemId, item]));
-        cachedLists = items;
-        renderItems(items);
+        updateItems(result.items);
+        updateResultsView();
         setLog(buildExternalLogMessage({
             title: lastSearchTitle,
             items,
@@ -255,8 +431,11 @@ async function handlePollExternalSearch() {
             scheduleExternalPolling();
         } else {
             setExternalSearchState(false);
-            const doneLabel = result.state === 'cancelled' ? 'abgebrochen' : 'abgeschlossen';
-            setStatus(`Externe Suche ${doneLabel}. Treffer: ${items.length}`);
+            if (result.state === 'done') {
+                setStatus(`Externe Suche abgeschlossen. Treffer: ${result.items?.length ?? 0}`);
+            } else if (result.state === 'cancelled') {
+                setStatus('Externe Suche abgebrochen.', { isError: true });
+            }
         }
     } catch (error) {
         setExternalSearchState(false);
@@ -270,6 +449,7 @@ async function handleCancelExternalSearch() {
     try {
         await cancelExternalSearch(externalSearchId);
         setExternalSearchState(false);
+        externalSearchId = null;
         setStatus('Externe Suche abgebrochen.', { isError: true });
     } catch (error) {
         setExternalSearchState(false);
@@ -288,10 +468,11 @@ async function handleLocalSearch() {
     try {
         const result = await searchLocal(title);
         sessionId = result.sessionId;
-        itemsById = new Map(result.items.map((item) => [item.itemId, item]));
-        cachedLists = result.items;
+        externalSearchId = null;
+        updateItems(result.items, { replace: true });
         lastSearchTitle = result.query?.title || title;
-        renderItems(result.items);
+        paging.page = 1;
+        updateResultsView();
         setStatus(`Lokale Suche abgeschlossen. Treffer: ${result.items.length}`);
         setLog(buildLogMessage({ title: lastSearchTitle, counts: result.counts, providerStatus: result.providerStatus }));
     } catch (error) {
@@ -312,53 +493,72 @@ async function handleExternalSearch() {
     stopExternalPolling();
     try {
         const result = await startExternalSearch(title);
-        externalSearchId = result.searchId;
+        externalSearchId = result.searchId || null;
         sessionId = null;
-        itemsById = new Map();
-        cachedLists = [];
+        updateItems([], { replace: true });
+        paging.page = 1;
         lastSearchTitle = title;
-        renderItems([]);
-        await handlePollExternalSearch();
+        updateResultsView();
+        setStatus('Externe Suche gestartet.');
+        if (externalSearchId) {
+            await handlePollExternalSearch();
+        } else {
+            setExternalSearchState(false);
+            setStatus('Externe Suche fehlgeschlagen.', { isError: true });
+        }
     } catch (error) {
         setExternalSearchState(false);
         setStatus(getErrorMessage(error, 'Externe Suche fehlgeschlagen.'), { isError: true });
     }
 }
 
-function renderItems(items = []) {
-    const listElement = rootElement?.querySelector('[data-search-results]');
+function renderItems(items = [], totalCount = 0) {
+    const listElement = rootElement?.querySelector('[data-search-results-body]');
     if (!listElement) return;
     if (!Array.isArray(items) || items.length === 0) {
-        listElement.innerHTML = '<div class="search-empty">Keine Treffer gefunden.</div>';
+        const emptyText = totalCount === 0 ? 'Keine Ergebnisse geladen.' : 'Keine Treffer auf dieser Seite.';
+        listElement.innerHTML = `
+            <tr>
+                <td colspan="5">${emptyText}</td>
+            </tr>
+        `;
         return;
     }
 
     listElement.innerHTML = items.map((item) => {
         const authorText = formatAuthors(item.authors);
-        const isbnText = item.isbn ? `ISBN: ${escapeHtml(item.isbn)}` : '';
-        const yearText = item.year ? `Jahr: ${escapeHtml(item.year)}` : '';
-        const publisherText = item.publisher ? `Verlag: ${escapeHtml(item.publisher)}` : '';
         const sourceText = mapSourceLabel(item.source);
         return `
-            <div class="search-result" data-result-id="${escapeHtml(item.itemId)}">
-                <div class="search-result__title">${escapeHtml(item.title)}</div>
-                ${authorText ? `<div class="search-result__authors">${escapeHtml(authorText)}</div>` : ''}
-                <div class="search-result__meta">
-                    ${isbnText ? `<span>${isbnText}</span>` : ''}
-                    ${yearText ? `<span>${yearText}</span>` : ''}
-                    ${publisherText ? `<span>${publisherText}</span>` : ''}
-                    <span>Quelle: ${escapeHtml(sourceText)}</span>
-                </div>
-                <div class="search-result__actions">
+            <tr data-result-id="${escapeHtml(item.itemId)}">
+                <td>${escapeHtml(sourceText)}</td>
+                <td>${escapeHtml(item.title)}</td>
+                <td>${escapeHtml(authorText)}</td>
+                <td>${item.isbn ? escapeHtml(item.isbn) : ''}</td>
+                <td class="search-actions-cell">
                     <button class="btn" data-action="import-book" data-item-id="${escapeHtml(item.itemId)}">Buch importieren</button>
                     <button class="btn" data-action="import-author" data-item-id="${escapeHtml(item.itemId)}">Autor importieren</button>
-                </div>
-            </div>
+                </td>
+            </tr>
         `;
     }).join('');
 }
 
-function handleResultActions(event) {
+function handleRootClick(event) {
+    const sortTarget = event.target?.closest?.('[data-sort-key]');
+    if (sortTarget) {
+        const sortKey = sortTarget.getAttribute('data-sort-key');
+        if (sortKey) {
+            handleSortChange(sortKey);
+            return;
+        }
+    }
+
+    const pageAction = event.target?.getAttribute('data-page-action');
+    if (pageAction) {
+        handlePageAction(pageAction);
+        return;
+    }
+
     const action = event.target?.getAttribute('data-action');
     if (!action) return;
     const itemId = event.target?.getAttribute('data-item-id');
@@ -370,6 +570,44 @@ function handleResultActions(event) {
     } else if (action === 'import-book') {
         handleImportBook(item);
     }
+}
+
+function handleSortChange(key) {
+    if (sortState.key !== key) {
+        sortState = { key, dir: 'asc' };
+    } else {
+        sortState = { key, dir: sortState.dir === 'asc' ? 'desc' : 'asc' };
+    }
+    updateResultsView();
+}
+
+function handlePageAction(action) {
+    const totalPages = getTotalPages(allItems.length);
+    if (totalPages === 0) return;
+    switch (action) {
+        case 'first':
+            paging.page = 1;
+            break;
+        case 'prev':
+            paging.page = Math.max(1, paging.page - 1);
+            break;
+        case 'next':
+            paging.page = Math.min(totalPages, paging.page + 1);
+            break;
+        case 'last':
+            paging.page = totalPages;
+            break;
+        default:
+            return;
+    }
+    updateResultsView();
+}
+
+function handlePageSizeChange(event) {
+    const nextSize = Number(event.target?.value || DEFAULT_PAGE_SIZE);
+    paging.pageSize = Number.isNaN(nextSize) ? DEFAULT_PAGE_SIZE : nextSize;
+    paging.page = clampPage(paging.page, getTotalPages(allItems.length));
+    updateResultsView();
 }
 
 async function handleImportAuthor(item) {
@@ -393,7 +631,7 @@ async function handleImportBook(item) {
 }
 
 function restoreListFromCache() {
-    renderItems(cachedLists);
+    updateResultsView(cachedLists);
 }
 
 export function onSearchTitleInputChange() {
@@ -405,5 +643,5 @@ export function onSearchTitleInputChange() {
         return;
     }
     const filteredItems = cachedLists.filter((item) => normalizeTitle(item.title).includes(normalizedTitle));
-    renderItems(filteredItems);
+    updateResultsView(filteredItems);
 }
