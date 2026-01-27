@@ -313,7 +313,7 @@ export async function startExternalSearchJob(query, { providers } = {}) {
     jobs.set(searchId, job);
     const normalizedProviders = normalizeProviders(providers);
     runJobSearch(job, normalizedProviders);
-    return { searchId };
+    return { id: searchId };
 }
 
 export function getExternalSearchJobStatus(searchId) {

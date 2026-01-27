@@ -484,7 +484,9 @@ async function handlePollExternalSearch() {
             setStatus('Externe Suche nicht gefunden.', { isError: true });
             return;
         }
-        updateItems(result.items);
+        // Robust definition of items for all following usages
+        const items = Array.isArray(result.items) ? result.items : [];
+        updateItems(items);
         updateResultsView();
         setLog(buildExternalLogMessage({
             title: lastSearchTitle,
@@ -498,7 +500,7 @@ async function handlePollExternalSearch() {
         } else {
             setExternalSearchState(false);
             if (result.state === 'done') {
-                setStatus(`Externe Suche abgeschlossen. Treffer: ${result.items?.length ?? 0}`);
+                setStatus(`Externe Suche abgeschlossen. Treffer: ${items.length}`);
             } else if (result.state === 'cancelled') {
                 setStatus('Externe Suche abgebrochen.', { isError: true });
             }
@@ -553,28 +555,26 @@ async function handleExternalSearch() {
         setStatus('Bitte einen Titel eingeben.', { isError: true });
         return;
     }
-    setStatus('Externe Suche läuft...');
-    setLog('Externe Suche gestartet...');
-    setExternalSearchState(true);
-    stopExternalPolling();
     try {
+        setExternalSearchState(true);
+        setStatus('Externe Suche gestartet...');
         const result = await startExternalSearch(title);
-        externalSearchId = result.searchId || null;
-        sessionId = null;
-        updateItems([], { replace: true });
-        paging.page = 1;
-        lastSearchTitle = title;
-        updateResultsView();
-        setStatus('Externe Suche gestartet.');
-        if (externalSearchId) {
-            await handlePollExternalSearch();
-        } else {
+        if (!result || !result.id) {
             setExternalSearchState(false);
-            setStatus('Externe Suche fehlgeschlagen.', { isError: true });
+            setStatus('Externe Suche konnte nicht gestartet werden.', { isError: true });
+            return;
         }
+        externalSearchId = result.id;
+        // Robust definition of items for all following usages
+        const items = Array.isArray(result.items) ? result.items : [];
+        if (items.length > 0) {
+            updateItems(items);
+            updateResultsView();
+        }
+        scheduleExternalPolling();
     } catch (error) {
         setExternalSearchState(false);
-        setStatus(getErrorMessage(error, 'Externe Suche fehlgeschlagen.'), { isError: true });
+        setStatus(getErrorMessage(error, 'Externe Suche konnte nicht gestartet werden.'), { isError: true });
     }
 }
 
