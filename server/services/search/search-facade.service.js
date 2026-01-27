@@ -60,6 +60,14 @@ export async function runLocalSearch(title) {
 export async function runExternalSearch({ sessionId, title, providers } = {}) {
     purgeExpiredSessions();
     let session = sessionId ? getSearchSession(sessionId) : null;
+    const normalizedTitle = normalizeTitleInput(title);
+
+    if (session && normalizedTitle) {
+        const existingTitle = normalizeTitleInput(session.query?.title);
+        if (existingTitle && existingTitle !== normalizedTitle) {
+            session = null;
+        }
+    }
 
     if (!session) {
         const localResult = await runLocalSearch(title);

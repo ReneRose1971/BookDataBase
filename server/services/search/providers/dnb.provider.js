@@ -106,7 +106,7 @@ export async function searchDnb(title, { limit = 10, fetcher = fetch, timeoutMs 
     const url = new URL("https://services.dnb.de/sru/dnb");
     url.searchParams.set("version", "1.1");
     url.searchParams.set("operation", "searchRetrieve");
-    url.searchParams.set("query", `title="${title}"`);
+    url.searchParams.set("query", `title all "${title}"`);
     url.searchParams.set("maximumRecords", String(limit));
     url.searchParams.set("recordSchema", "dc");
 
