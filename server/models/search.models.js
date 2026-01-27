@@ -19,6 +19,19 @@ export function normalizeTitleInput(title) {
         .trim();
 }
 
+export function normalizeContainsInput(value) {
+    if (typeof value !== "string") {
+        return "";
+    }
+    return value
+        .normalize("NFD")
+        .replace(/\p{M}+/gu, "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 export function tokenizeTitle(normalizedTitle) {
     if (!normalizedTitle) {
         return [];

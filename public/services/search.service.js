@@ -4,8 +4,16 @@ export async function searchLocal(title) {
     return postJson('/api/search/local', { title });
 }
 
-export async function searchExternal({ sessionId, title, providers } = {}) {
-    return postJson('/api/search/external', { sessionId, title, providers });
+export async function startExternalSearch(query, providers) {
+    return postJson('/api/search/external/start', { query, providers });
+}
+
+export async function getExternalSearchStatus(searchId) {
+    return getJson(`/api/search/external/status/${searchId}`);
+}
+
+export async function cancelExternalSearch(searchId) {
+    return postJson(`/api/search/external/cancel/${searchId}`);
 }
 
 export async function getSearchResults(sessionId) {

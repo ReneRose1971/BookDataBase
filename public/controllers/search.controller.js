@@ -1,9 +1,11 @@
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
-import { getJson, getErrorMessage } from '../api/api-client.js';
+import { getErrorMessage } from '../api/api-client.js';
 import {
     searchLocal,
-    searchExternal,
+    startExternalSearch,
+    getExternalSearchStatus,
+    cancelExternalSearch,
     importAuthor,
     importBook
 } from '../services/search.service.js';
@@ -12,6 +14,8 @@ let rootElement = null;
 let disposables = null;
 let editorDisposables = null;
 let sessionId = null;
+let externalSearchId = null;
+let externalSearchPoll = null;
 let itemsById = new Map();
 let cachedLists = [];
 let lastSearchTitle = '';
@@ -26,9 +30,11 @@ export async function mount(ctx) {
     const titleInput = rootElement.querySelector('#searchTitle');
     const localButton = rootElement.querySelector('[data-search-action="local"]');
     const externalButton = rootElement.querySelector('[data-search-action="external"]');
+    const cancelButton = rootElement.querySelector('[data-search-action="cancel-external"]');
 
     disposables.add(addEvent(localButton, 'click', () => handleLocalSearch()));
     disposables.add(addEvent(externalButton, 'click', () => handleExternalSearch()));
+    disposables.add(addEvent(cancelButton, 'click', () => handleCancelExternalSearch()));
     disposables.add(addEvent(rootElement, 'click', handleResultActions));
     disposables.add(addEvent(titleInput, 'keydown', (event) => {
         if (event.key === 'Enter') {
@@ -39,6 +45,7 @@ export async function mount(ctx) {
 
     setStatus('Bitte Titel eingeben.');
     setLog('Noch keine externe Suche gestartet.');
+    setExternalSearchState(false);
 }
 
 export function unmount() {
@@ -50,6 +57,8 @@ export function unmount() {
     disposables = null;
     rootElement = null;
     sessionId = null;
+    externalSearchId = null;
+    stopExternalPolling();
     itemsById = new Map();
 }
 
@@ -71,6 +80,17 @@ function setLog(message) {
     const logElement = rootElement?.querySelector('[data-search-log]');
     if (!logElement) return;
     logElement.textContent = message;
+}
+
+function setExternalSearchState(isRunning) {
+    const externalButton = rootElement?.querySelector('[data-search-action="external"]');
+    const cancelButton = rootElement?.querySelector('[data-search-action="cancel-external"]');
+    if (externalButton) {
+        externalButton.disabled = isRunning;
+    }
+    if (cancelButton) {
+        cancelButton.disabled = !isRunning;
+    }
 }
 
 function escapeHtml(value) {
@@ -159,6 +179,50 @@ function buildLogMessage({ title, counts, providerStatus }) {
         .join(' • ');
 }
 
+function formatProviderProgress(providerProgress = {}) {
+    const entries = Object.entries(providerProgress);
+    if (entries.length === 0) {
+        return 'Keine Provider-Details vorhanden.';
+    }
+    return entries
+        .map(([provider, progress]) => {
+            const label = mapSourceLabel(provider);
+            const page = progress?.page ? `Seite ${progress.page}` : 'Seite ?';
+            const matched = typeof progress?.matchedItems === 'number' ? `Treffer ${progress.matchedItems}` : null;
+            const total = typeof progress?.total === 'number' ? `Total ${progress.total}` : null;
+            const status = progress?.status || 'running';
+            return `${label}: ${page}${matched ? `, ${matched}` : ''}${total ? `, ${total}` : ''} (${status})`;
+        })
+        .join(' | ');
+}
+
+function buildExternalLogMessage({ title, items, providerProgress, state }) {
+    const totalLoaded = Array.isArray(items) ? items.length : 0;
+    const providerSummary = formatProviderProgress(providerProgress);
+    const stateLabel = state === 'done' ? 'Abgeschlossen' : state === 'cancelled' ? 'Abgebrochen' : 'Läuft';
+    return [
+        `Suche: "${title || '-'}"`,
+        `Geladen: ${totalLoaded}`,
+        `Status: ${stateLabel}`,
+        `Provider: ${providerSummary}`
+    ]
+        .filter(Boolean)
+        .join(' • ');
+}
+
+function stopExternalPolling() {
+    if (externalSearchPoll) {
+        clearTimeout(externalSearchPoll);
+        externalSearchPoll = null;
+    }
+}
+
+function scheduleExternalPolling() {
+    stopExternalPolling();
+    const delay = 300 + Math.floor(Math.random() * 400);
+    externalSearchPoll = setTimeout(() => pollExternalSearchStatus(), delay);
+}
+
 function renderResults(items = []) {
     const tbody = rootElement?.querySelector('[data-search-results-body]');
     if (!tbody) return;
@@ -243,13 +307,18 @@ async function handleLocalSearch() {
             counts.total = Array.isArray(result.items) ? result.items.length : 0;
         }
         setLog(buildLogMessage({ title, counts, providerStatus: result.providerStatus }));
-        setStatus('Suche abgeschlossen.');
+    setStatus('Suche abgeschlossen.');
+    setExternalSearchState(false);
     } catch (error) {
         setStatus(getErrorMessage(error), { isError: true });
     }
 }
 
 async function handleExternalSearch() {
+    if (externalSearchId) {
+        stopExternalPolling();
+        externalSearchId = null;
+    }
     clearResults();
     const titleInput = rootElement.querySelector('#searchTitle');
     const title = titleInput?.value?.trim();
@@ -260,24 +329,65 @@ async function handleExternalSearch() {
 
     setStatus('Externe Suche läuft...');
     setLog('Externe Suche gestartet, Ergebnisse werden geladen...');
+    setExternalSearchState(true);
     try {
         const normalizedTitle = normalizeTitle(title);
         if (normalizedTitle && normalizedTitle !== normalizeTitle(lastSearchTitle)) {
             sessionId = null;
         }
-        const result = await searchExternal({ sessionId, title });
-        sessionId = result.sessionId;
+        const result = await startExternalSearch(title);
+        externalSearchId = result.searchId;
         lastSearchTitle = title;
-        renderResults(result.items);
-        logSearchDetails(title, sessionId, result.items);
-        const counts = { ...(result.counts || {}) };
-        if (typeof counts.total !== 'number') {
-            counts.total = Array.isArray(result.items) ? result.items.length : 0;
-        }
-        setLog(buildLogMessage({ title, counts, providerStatus: result.providerStatus }));
-        setStatus('Externe Suche abgeschlossen.');
+        await pollExternalSearchStatus();
     } catch (error) {
         setStatus(getErrorMessage(error), { isError: true });
+        setExternalSearchState(false);
+    }
+}
+
+async function pollExternalSearchStatus() {
+    if (!externalSearchId) {
+        setExternalSearchState(false);
+        return;
+    }
+    try {
+        const status = await getExternalSearchStatus(externalSearchId);
+        renderResults(status.items);
+        logSearchDetails(lastSearchTitle, externalSearchId, status.items);
+        setLog(buildExternalLogMessage({
+            title: lastSearchTitle,
+            items: status.items,
+            providerProgress: status.providerProgress,
+            state: status.state
+        }));
+        if (status.state === 'running') {
+            setStatus('Externe Suche läuft...');
+            scheduleExternalPolling();
+        } else if (status.state === 'cancelled') {
+            setStatus('Externe Suche abgebrochen.');
+            setExternalSearchState(false);
+        } else {
+            setStatus('Externe Suche abgeschlossen.');
+            setExternalSearchState(false);
+        }
+    } catch (error) {
+        setStatus(getErrorMessage(error), { isError: true });
+        setExternalSearchState(false);
+    }
+}
+
+async function handleCancelExternalSearch() {
+    if (!externalSearchId) {
+        return;
+    }
+    try {
+        await cancelExternalSearch(externalSearchId);
+    } catch (error) {
+        setStatus(getErrorMessage(error), { isError: true });
+    } finally {
+        stopExternalPolling();
+        setExternalSearchState(false);
+        setStatus('Externe Suche abgebrochen.');
     }
 }
 
@@ -425,6 +535,8 @@ async function openBookEditor(item) {
                 try {
                     await importBook({
                         itemId: item.itemId,
+                        searchId: externalSearchId || null,
+                        sessionId: sessionId || null,
                         title: formData.get('title')?.trim(),
                         authors,
                         isbn: formData.get('isbn')?.trim(),

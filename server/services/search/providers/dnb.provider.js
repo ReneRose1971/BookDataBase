@@ -99,7 +99,22 @@ function createDnbError(message, code, details) {
     return error;
 }
 
-export async function searchDnb(title, { limit = 10, fetcher = fetch, timeoutMs = 8000 } = {}) {
+function escapeCqlTerm(value) {
+    if (typeof value !== "string") {
+        return "";
+    }
+    return value.replace(/"/g, '\\"').trim();
+}
+
+function buildDnbQuery(title) {
+    const escaped = escapeCqlTerm(title);
+    if (!escaped) {
+        return "";
+    }
+    return `title all "${escaped}*"`;
+}
+
+export async function searchDnb(title, { limit = 10, startRecord = 1, fetcher = fetch, signal } = {}) {
     if (!title) {
         return { items: [], totalItems: null, requestUrl: null, status: 200, statusText: "No query", limit };
     }
@@ -107,23 +122,21 @@ export async function searchDnb(title, { limit = 10, fetcher = fetch, timeoutMs 
     const url = new URL("https://services.dnb.de/sru/dnb");
     url.searchParams.set("version", "1.1");
     url.searchParams.set("operation", "searchRetrieve");
-    url.searchParams.set("query", `title all "${title}"`);
+    url.searchParams.set("query", buildDnbQuery(title));
     url.searchParams.set("maximumRecords", String(limit));
     url.searchParams.set("recordSchema", "dc");
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    if (typeof startRecord === "number" && startRecord > 1) {
+        url.searchParams.set("startRecord", String(startRecord));
+    }
 
     let response;
     try {
-        response = await fetcher(url.toString(), { signal: controller.signal });
+        response = await fetcher(url.toString(), { signal });
     } catch (error) {
         throw createDnbError("DNB_UNAVAILABLE", "DNB_UNAVAILABLE", {
             requestUrl: url.toString(),
             message: error?.message
         });
-    } finally {
-        clearTimeout(timeout);
     }
 
     const responseText = await response.text();
@@ -153,6 +166,7 @@ export async function searchDnb(title, { limit = 10, fetcher = fetch, timeoutMs 
         requestUrl: url.toString(),
         status: response.status,
         statusText: response.statusText,
-        limit
+        limit,
+        startRecord
     };
 }
