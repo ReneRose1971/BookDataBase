@@ -16,7 +16,7 @@ const PROVIDERS = [SearchSource.GOOGLE_BOOKS, SearchSource.OPEN_LIBRARY, SearchS
 const PROVIDER_PAGE_SIZES = Object.freeze({
     [SearchSource.GOOGLE_BOOKS]: 20,
     [SearchSource.OPEN_LIBRARY]: 50,
-    [SearchSource.DNB]: 25
+    [SearchSource.DNB]: 100
 });
 
 const DEFAULT_TTL_MS = 15 * 60 * 1000;
@@ -223,6 +223,8 @@ async function runDnbPaging(job, query, normalizedQuery) {
             const result = await searchDnb(query, {
                 limit: PROVIDER_PAGE_SIZES[provider],
                 startRecord,
+                pageSize: PROVIDER_PAGE_SIZES[provider],
+                fetchAllPages: false,
                 signal: controller.signal
             });
             totalItems = typeof result.totalItems === "number" ? result.totalItems : totalItems;

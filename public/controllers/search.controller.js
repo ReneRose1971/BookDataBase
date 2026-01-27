@@ -152,7 +152,22 @@ function formatProviderStatus(providerStatus = {}) {
             const totalLabel = total !== null ? `${count}/${total}` : `${count}`;
             const limitLabel = limit ? `Limit ${limit}` : null;
             const httpLabel = status?.statusCode ? `HTTP ${status.statusCode}` : null;
-            const meta = [state, limitLabel, httpLabel].filter(Boolean).join(', ');
+            const metaDetails = status?.providerMeta || null;
+            const metaParts = [];
+            if (metaDetails?.indexUsed) {
+                metaParts.push(`Index ${metaDetails.indexUsed}`);
+            }
+            if (metaDetails?.queryMode) {
+                metaParts.push(`Modus ${metaDetails.queryMode}`);
+            }
+            if (typeof metaDetails?.pagesFetched === 'number') {
+                metaParts.push(`Seiten ${metaDetails.pagesFetched}`);
+            }
+            if (typeof metaDetails?.recordsTotal === 'number') {
+                metaParts.push(`Total ${metaDetails.recordsTotal}`);
+            }
+            const metaLabel = metaParts.length > 0 ? `Meta ${metaParts.join(', ')}` : null;
+            const meta = [state, limitLabel, httpLabel, metaLabel].filter(Boolean).join(', ');
             return `${label}: ${totalLabel} (${meta})`;
         })
         .join(' | ');
@@ -218,379 +233,179 @@ function stopExternalPolling() {
 }
 
 function scheduleExternalPolling() {
+    if (!externalSearchId) return;
     stopExternalPolling();
-    const delay = 300 + Math.floor(Math.random() * 400);
-    externalSearchPoll = setTimeout(() => pollExternalSearchStatus(), delay);
+    externalSearchPoll = setTimeout(() => {
+        handlePollExternalSearch();
+    }, 1200);
 }
 
-function renderResults(items = []) {
-    const tbody = rootElement?.querySelector('[data-search-results-body]');
-    if (!tbody) return;
-
-    itemsById = new Map();
-    if (!Array.isArray(items) || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5">Keine Treffer.</td></tr>';
-        return;
-    }
-
-    const rows = items.map((item) => {
-        itemsById.set(item.itemId, item);
-        const authors = formatAuthors(item.authors);
-        const hasAuthors = Array.isArray(item.authors) && item.authors.length > 0;
-        const canImport = item.source !== 'local';
-        const authorAction = canImport && hasAuthors
-            ? `<button class=\"func-button\" data-search-action=\"import-author\" data-item-id=\"${item.itemId}\">Autor übernehmen</button>`
-            : '<span>-</span>';
-        const bookAction = canImport && item.title && hasAuthors
-            ? `<button class=\"func-button\" data-search-action=\"import-book\" data-item-id=\"${item.itemId}\">Buch übernehmen</button>`
-            : '<span>-</span>';
-
-        return `
-            <tr data-item-id="${item.itemId}">
-                <td>${escapeHtml(mapSourceLabel(item.source))}</td>
-                <td>${escapeHtml(item.title || '')}</td>
-                <td>${escapeHtml(authors)}</td>
-                <td>${escapeHtml(item.isbn || '')}</td>
-                <td>
-                    <div class="search-actions-cell">
-                        ${authorAction}
-                        ${bookAction}
-                    </div>
-                </td>
-            </tr>
-        `;
-    });
-
-    tbody.innerHTML = rows.join('');
-}
-
-function handleEndpointError(error, endpoint) {
-    if (error && error.status === 404) {
-        setStatus(`Backend-Endpoint fehlt: ${endpoint}`, { isError: true });
-        return true;
-    }
-    return false;
-}
-
-function clearResults() {
-    const tbody = rootElement?.querySelector('[data-search-results-body]');
-    if (tbody) {
-        tbody.innerHTML = '';
-    }
-}
-
-function logSearchDetails(title, sessionId, items) {
-    console.log('Search Title:', title);
-    console.log('Session ID:', sessionId);
-    console.log('Search Results:', items);
-}
-
-async function handleLocalSearch() {
-    clearResults();
-    const titleInput = rootElement.querySelector('#searchTitle');
-    const title = titleInput?.value?.trim();
-    if (!title) {
-        setStatus('Bitte Titel eingeben.', { isError: true });
-        return;
-    }
-
-    setStatus('Suche läuft...');
-    setLog('Lokale Suche gestartet, Ergebnisse werden geladen...');
+async function handlePollExternalSearch() {
+    if (!externalSearchId) return;
     try {
-        const result = await searchLocal(title);
-        sessionId = result.sessionId;
-        lastSearchTitle = title;
-        renderResults(result.items);
-        logSearchDetails(title, sessionId, result.items);
-        const counts = { ...(result.counts || {}) };
-        if (typeof counts.total !== 'number') {
-            counts.total = Array.isArray(result.items) ? result.items.length : 0;
+        const result = await getExternalSearchStatus(externalSearchId);
+        if (!result) {
+            stopExternalPolling();
+            setExternalSearchState(false);
+            setStatus('Externe Suche nicht gefunden.', { isError: true });
+            return;
         }
-        setLog(buildLogMessage({ title, counts, providerStatus: result.providerStatus }));
-    setStatus('Suche abgeschlossen.');
-    setExternalSearchState(false);
-    } catch (error) {
-        setStatus(getErrorMessage(error), { isError: true });
-    }
-}
-
-async function handleExternalSearch() {
-    if (externalSearchId) {
-        stopExternalPolling();
-        externalSearchId = null;
-    }
-    clearResults();
-    const titleInput = rootElement.querySelector('#searchTitle');
-    const title = titleInput?.value?.trim();
-    if (!title) {
-        setStatus('Bitte Titel eingeben.', { isError: true });
-        return;
-    }
-
-    setStatus('Externe Suche läuft...');
-    setLog('Externe Suche gestartet, Ergebnisse werden geladen...');
-    setExternalSearchState(true);
-    try {
-        const normalizedTitle = normalizeTitle(title);
-        if (normalizedTitle && normalizedTitle !== normalizeTitle(lastSearchTitle)) {
-            sessionId = null;
-        }
-        const result = await startExternalSearch(title);
-        externalSearchId = result.searchId;
-        lastSearchTitle = title;
-        await pollExternalSearchStatus();
-    } catch (error) {
-        setStatus(getErrorMessage(error), { isError: true });
-        setExternalSearchState(false);
-    }
-}
-
-async function pollExternalSearchStatus() {
-    if (!externalSearchId) {
-        setExternalSearchState(false);
-        return;
-    }
-    try {
-        const status = await getExternalSearchStatus(externalSearchId);
-        renderResults(status.items);
-        logSearchDetails(lastSearchTitle, externalSearchId, status.items);
         setLog(buildExternalLogMessage({
             title: lastSearchTitle,
-            items: status.items,
-            providerProgress: status.providerProgress,
-            state: status.state
+            items: result.items,
+            providerProgress: result.providerProgress,
+            state: result.state
         }));
-        if (status.state === 'running') {
-            setStatus('Externe Suche läuft...');
+        if (result.state === 'running') {
             scheduleExternalPolling();
-        } else if (status.state === 'cancelled') {
-            setStatus('Externe Suche abgebrochen.');
-            setExternalSearchState(false);
         } else {
-            setStatus('Externe Suche abgeschlossen.');
             setExternalSearchState(false);
         }
     } catch (error) {
-        setStatus(getErrorMessage(error), { isError: true });
         setExternalSearchState(false);
+        setStatus(getErrorMessage(error, 'Externe Suche fehlgeschlagen.'), { isError: true });
     }
 }
 
 async function handleCancelExternalSearch() {
-    if (!externalSearchId) {
-        return;
-    }
+    if (!externalSearchId) return;
+    stopExternalPolling();
     try {
         await cancelExternalSearch(externalSearchId);
-    } catch (error) {
-        setStatus(getErrorMessage(error), { isError: true });
-    } finally {
-        stopExternalPolling();
         setExternalSearchState(false);
-        setStatus('Externe Suche abgebrochen.');
+        setStatus('Externe Suche abgebrochen.', { isError: true });
+    } catch (error) {
+        setExternalSearchState(false);
+        setStatus(getErrorMessage(error, 'Abbruch fehlgeschlagen.'), { isError: true });
     }
+}
+
+async function handleLocalSearch() {
+    const titleInput = rootElement?.querySelector('#searchTitle');
+    const title = titleInput?.value || '';
+    setStatus('Suche läuft...');
+    setLog('Lokale Suche läuft...');
+    stopExternalPolling();
+    setExternalSearchState(false);
+    try {
+        const result = await searchLocal(title);
+        sessionId = result.sessionId;
+        itemsById = new Map(result.items.map((item) => [item.itemId, item]));
+        cachedLists = result.items;
+        lastSearchTitle = result.query?.title || title;
+        renderItems(result.items);
+        setStatus(`Lokale Suche abgeschlossen. Treffer: ${result.items.length}`);
+        setLog(buildLogMessage({ title: lastSearchTitle, counts: result.counts, providerStatus: result.providerStatus }));
+    } catch (error) {
+        setStatus(getErrorMessage(error, 'Suche fehlgeschlagen.'), { isError: true });
+    }
+}
+
+async function handleExternalSearch() {
+    const titleInput = rootElement?.querySelector('#searchTitle');
+    const title = titleInput?.value || '';
+    if (!title.trim()) {
+        setStatus('Bitte einen Titel eingeben.', { isError: true });
+        return;
+    }
+    setStatus('Externe Suche läuft...');
+    setLog('Externe Suche gestartet...');
+    setExternalSearchState(true);
+    stopExternalPolling();
+    try {
+        const result = await startExternalSearch({ sessionId, title });
+        sessionId = result.sessionId;
+        itemsById = new Map(result.items.map((item) => [item.itemId, item]));
+        cachedLists = result.items;
+        lastSearchTitle = result.query?.title || title;
+        renderItems(result.items);
+        setStatus(`Externe Suche abgeschlossen. Treffer: ${result.items.length}`);
+        setLog(buildLogMessage({ title: lastSearchTitle, counts: result.counts, providerStatus: result.providerStatus }));
+    } catch (error) {
+        setExternalSearchState(false);
+        setStatus(getErrorMessage(error, 'Externe Suche fehlgeschlagen.'), { isError: true });
+    }
+}
+
+function renderItems(items = []) {
+    const listElement = rootElement?.querySelector('[data-search-results]');
+    if (!listElement) return;
+    if (!Array.isArray(items) || items.length === 0) {
+        listElement.innerHTML = '<div class="search-empty">Keine Treffer gefunden.</div>';
+        return;
+    }
+
+    listElement.innerHTML = items.map((item) => {
+        const authorText = formatAuthors(item.authors);
+        const isbnText = item.isbn ? `ISBN: ${escapeHtml(item.isbn)}` : '';
+        const yearText = item.year ? `Jahr: ${escapeHtml(item.year)}` : '';
+        const publisherText = item.publisher ? `Verlag: ${escapeHtml(item.publisher)}` : '';
+        const sourceText = mapSourceLabel(item.source);
+        return `
+            <div class="search-result" data-result-id="${escapeHtml(item.itemId)}">
+                <div class="search-result__title">${escapeHtml(item.title)}</div>
+                ${authorText ? `<div class="search-result__authors">${escapeHtml(authorText)}</div>` : ''}
+                <div class="search-result__meta">
+                    ${isbnText ? `<span>${isbnText}</span>` : ''}
+                    ${yearText ? `<span>${yearText}</span>` : ''}
+                    ${publisherText ? `<span>${publisherText}</span>` : ''}
+                    <span>Quelle: ${escapeHtml(sourceText)}</span>
+                </div>
+                <div class="search-result__actions">
+                    <button class="btn" data-action="import-book" data-item-id="${escapeHtml(item.itemId)}">Buch importieren</button>
+                    <button class="btn" data-action="import-author" data-item-id="${escapeHtml(item.itemId)}">Autor importieren</button>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function handleResultActions(event) {
-    const actionButton = event.target.closest('[data-search-action]');
-    if (!actionButton) return;
-
-    const action = actionButton.dataset.searchAction;
-    const itemId = actionButton.dataset.itemId;
-
-    if (action === 'import-author' || action === 'import-book') {
-        const item = itemsById.get(itemId);
-        if (!item) {
-            setStatus('Suchtreffer nicht gefunden.', { isError: true });
-            return;
-        }
-        if (action === 'import-author') {
-            openAuthorEditor(item);
-        } else if (action === 'import-book') {
-            openBookEditor(item);
-        }
+    const action = event.target?.getAttribute('data-action');
+    if (!action) return;
+    const itemId = event.target?.getAttribute('data-item-id');
+    if (!itemId) return;
+    const item = itemsById.get(itemId);
+    if (!item) return;
+    if (action === 'import-author') {
+        handleImportAuthor(item);
+    } else if (action === 'import-book') {
+        handleImportBook(item);
     }
 }
 
-function setEditorStatus(root, message, { isError = false } = {}) {
-    const statusElement = root.querySelector('[data-search-import-status]');
-    if (!statusElement) return;
-    statusElement.textContent = message;
-    statusElement.classList.toggle('is-error', isError);
+async function handleImportAuthor(item) {
+    setStatus('Importiere Autor...');
+    try {
+        await importAuthor(item.itemId, { sessionId });
+        setStatus('Autor importiert.');
+    } catch (error) {
+        setStatus(getErrorMessage(error, 'Autorimport fehlgeschlagen.'), { isError: true });
+    }
 }
 
-async function openAuthorEditor(item) {
-    const slot = rootElement?.querySelector('.search-editor-slot');
-    if (!slot) return;
-    if (!Array.isArray(item.authors) || item.authors.length === 0) {
-        setStatus('Keine Autorendaten im Treffer vorhanden.', { isError: true });
+async function handleImportBook(item) {
+    setStatus('Importiere Buch...');
+    try {
+        await importBook(item.itemId, { sessionId });
+        setStatus('Buch importiert.');
+    } catch (error) {
+        setStatus(getErrorMessage(error, 'Buchimport fehlgeschlagen.'), { isError: true });
+    }
+}
+
+function restoreListFromCache() {
+    renderItems(cachedLists);
+}
+
+export function onSearchTitleInputChange() {
+    const titleInput = rootElement?.querySelector('#searchTitle');
+    const title = titleInput?.value || '';
+    const normalizedTitle = normalizeTitle(title);
+    if (!normalizedTitle) {
+        restoreListFromCache();
         return;
     }
-
-    closeEditor();
-    clearEditorDisposables();
-
-    await openEditor({
-        host: slot,
-        manifestPath: '/editors/search-import-author.editor.json',
-        mode: 'create',
-        dataContext: { itemId: item.itemId },
-        actions: {
-            confirm: async (event) => {
-                event.preventDefault();
-                const editorRoot = slot.querySelector('.search-import-editor');
-                if (!editorRoot) return;
-                const firstNameInput = editorRoot.querySelector('#searchImportAuthorFirstName');
-                const lastNameInput = editorRoot.querySelector('#searchImportAuthorLastName');
-                const firstName = firstNameInput ? firstNameInput.value.trim() : '';
-                const lastName = lastNameInput ? lastNameInput.value.trim() : '';
-
-                if (!firstName || !lastName) {
-                    setEditorStatus(editorRoot, 'Vor- und Nachname sind erforderlich.', { isError: true });
-                    return;
-                }
-
-                try {
-                    await importAuthor({
-                        author: { firstName, lastName, fullName: `${firstName} ${lastName}`.trim() },
-                        confirm: true
-                    });
-                    closeEditor();
-                    clearEditorDisposables();
-                    setStatus('Autor wurde übernommen.');
-                } catch (error) {
-                    if (handleEndpointError(error, '/api/search/import/author')) return;
-                    setEditorStatus(editorRoot, getErrorMessage(error, 'Fehler beim Übernehmen des Autors.'), { isError: true });
-                }
-            },
-            cancel: async (event) => {
-                event.preventDefault();
-                closeEditor();
-                clearEditorDisposables();
-            }
-        }
-    });
-
-    const editorRoot = slot.querySelector('.search-import-editor');
-    if (!editorRoot) return;
-
-    editorDisposables = createDisposables();
-
-    const select = editorRoot.querySelector('#searchImportAuthorSelect');
-    const firstNameInput = editorRoot.querySelector('#searchImportAuthorFirstName');
-    const lastNameInput = editorRoot.querySelector('#searchImportAuthorLastName');
-
-    const applyAuthor = (index) => {
-        const author = item.authors[index] || item.authors[0];
-        if (!author) return;
-        if (author.firstName && author.lastName) {
-            firstNameInput.value = author.firstName;
-            lastNameInput.value = author.lastName;
-        }
-    };
-
-    if (select) {
-        select.innerHTML = item.authors.map((author, index) => {
-            return `<option value="${index}">${escapeHtml(formatAuthor(author))}</option>`;
-        }).join('');
-        select.value = 0;
-
-        editorDisposables.add(addEvent(select, 'change', (event) => {
-            const index = parseInt(event.target.value, 10);
-            if (!isNaN(index)) {
-                applyAuthor(index);
-            }
-        }));
-
-        applyAuthor(0);
-    }
-}
-
-async function openBookEditor(item) {
-    const slot = rootElement?.querySelector('.search-editor-slot');
-    if (!slot) return;
-
-    closeEditor();
-    clearEditorDisposables();
-
-    await openEditor({
-        host: slot,
-        manifestPath: '/editors/search-import-book.editor.json',
-        mode: 'create',
-        dataContext: { itemId: item.itemId },
-        actions: {
-            confirm: async (event) => {
-                event.preventDefault();
-                const editorRoot = slot.querySelector('.search-import-editor');
-                if (!editorRoot) return;
-                const form = editorRoot.querySelector('form');
-                if (!form) return;
-                const formData = new FormData(form);
-
-                const authors = formData.getAll('author[]').filter(Boolean).map((name) => {
-                    const [firstName, lastName] = name.split(',').map(part => part.trim());
-                    return { firstName, lastName, fullName: `${firstName} ${lastName}`.trim() };
-                });
-
-                try {
-                    await importBook({
-                        itemId: item.itemId,
-                        searchId: externalSearchId || null,
-                        sessionId: sessionId || null,
-                        title: formData.get('title')?.trim(),
-                        authors,
-                        isbn: formData.get('isbn')?.trim(),
-                        confirm: true
-                    });
-                    closeEditor();
-                    clearEditorDisposables();
-                    setStatus('Buch wurde übernommen.');
-                } catch (error) {
-                    if (handleEndpointError(error, '/api/search/import/book')) return;
-                    setEditorStatus(editorRoot, getErrorMessage(error, 'Fehler beim Übernehmen des Buchs.'), { isError: true });
-                }
-            },
-            cancel: async (event) => {
-                event.preventDefault();
-                closeEditor();
-                clearEditorDisposables();
-            }
-        }
-    });
-
-    const editorRoot = slot.querySelector('.search-import-editor');
-    if (!editorRoot) return;
-
-    editorDisposables = createDisposables();
-
-    const titleInput = editorRoot.querySelector('#searchImportBookTitle');
-    const isbnInput = editorRoot.querySelector('#searchImportBookIsbn');
-    const authorSelect = editorRoot.querySelector('#searchImportBookAuthorSelect');
-
-    titleInput.value = item.title || '';
-    isbnInput.value = item.isbn || '';
-
-    if (authorSelect) {
-        authorSelect.innerHTML = item.authors.map((author, index) => {
-            return `<option value="${index}">${escapeHtml(formatAuthor(author))}</option>`;
-        }).join('');
-        authorSelect.value = 0;
-
-        editorDisposables.add(addEvent(authorSelect, 'change', (event) => {
-            const index = parseInt(event.target.value, 10);
-            if (!isNaN(index)) {
-                const author = item.authors[index] || item.authors[0];
-                if (author.firstName && author.lastName) {
-                    firstNameInput.value = author.firstName;
-                    lastNameInput.value = author.lastName;
-                }
-            }
-        }));
-
-        const firstAuthor = item.authors[0];
-        if (firstAuthor && firstAuthor.firstName && firstAuthor.lastName) {
-            firstNameInput.value = firstAuthor.firstName;
-            lastNameInput.value = firstAuthor.lastName;
-        }
-    }
+    const filteredItems = cachedLists.filter((item) => normalizeTitle(item.title).includes(normalizedTitle));
+    renderItems(filteredItems);
 }

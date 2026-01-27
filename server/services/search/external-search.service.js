@@ -123,7 +123,8 @@ export async function searchExternalByTitle(title, { providers } = {}) {
                 status: "ok",
                 count: dnbResult.items.length,
                 total: dnbResult.totalItems,
-                limit: dnbResult.limit
+                limit: dnbResult.limit,
+                providerMeta: dnbResult.providerMeta
             };
             logProviderSuccess({
                 provider: SearchSource.DNB,
