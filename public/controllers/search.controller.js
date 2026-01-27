@@ -422,11 +422,12 @@ async function handlePollExternalSearch() {
         updateResultsView();
         setLog(buildExternalLogMessage({
             title: lastSearchTitle,
-            items: result.items,
+            items,
             providerProgress: result.providerProgress,
             state: result.state
         }));
         if (result.state === 'running') {
+            setStatus(`Externe Suche läuft... Treffer: ${items.length}`);
             scheduleExternalPolling();
         } else {
             setExternalSearchState(false);
@@ -463,6 +464,7 @@ async function handleLocalSearch() {
     setLog('Lokale Suche läuft...');
     stopExternalPolling();
     setExternalSearchState(false);
+    externalSearchId = null;
     try {
         const result = await searchLocal(title);
         sessionId = result.sessionId;
