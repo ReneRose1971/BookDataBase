@@ -1,4 +1,5 @@
 import * as searchFacade from "../services/search/search-facade.service.js";
+import * as externalJobService from "../services/search/external-search-job.service.js";
 import * as authorsService from "../services/authors.service.js";
 import * as booksService from "../services/books.service.js";
 import { createImportCandidateAuthor, createImportCandidateBook } from "../models/search.models.js";
@@ -43,6 +44,57 @@ export async function searchExternal(req, res) {
     }
 }
 
+export async function startExternalSearch(req, res) {
+    const { query, providers } = req.body;
+    if (!query || !query.trim()) {
+        return res.status(400).json({ error: "Titel darf nicht leer sein." });
+    }
+
+    try {
+        const result = await externalJobService.startExternalSearchJob(query, { providers });
+        res.json(result);
+    } catch (error) {
+        console.error("Error starting external search job:", error);
+        res.status(500).json({ error: "Fehler beim Start der externen Suche." });
+    }
+}
+
+export async function getExternalSearchStatus(req, res) {
+    const searchId = req.params.searchId;
+    if (!searchId) {
+        return res.status(400).json({ error: "Search-ID erforderlich." });
+    }
+
+    try {
+        const status = externalJobService.getExternalSearchJobStatus(searchId);
+        if (!status) {
+            return res.status(404).json({ error: "Such-Job nicht gefunden." });
+        }
+        res.json(status);
+    } catch (error) {
+        console.error("Error fetching external search status:", error);
+        res.status(500).json({ error: "Fehler beim Laden des Suchstatus." });
+    }
+}
+
+export async function cancelExternalSearch(req, res) {
+    const searchId = req.params.searchId;
+    if (!searchId) {
+        return res.status(400).json({ error: "Search-ID erforderlich." });
+    }
+
+    try {
+        const result = externalJobService.cancelExternalSearchJob(searchId);
+        if (!result) {
+            return res.status(404).json({ error: "Such-Job nicht gefunden." });
+        }
+        res.json(result);
+    } catch (error) {
+        console.error("Error cancelling external search job:", error);
+        res.status(500).json({ error: "Fehler beim Abbrechen der externen Suche." });
+    }
+}
+
 export async function getSearchResults(req, res) {
     const sessionId = req.params.id || req.body.sessionId;
     if (!sessionId) {
@@ -62,13 +114,19 @@ export async function getSearchResults(req, res) {
 }
 
 export async function importAuthor(req, res) {
-    const { sessionId, itemId, authorIndex = 0, author, confirm } = req.body;
+    const { sessionId, searchId, itemId, authorIndex = 0, author, confirm } = req.body;
 
     let candidate = null;
     if (author) {
         candidate = createImportCandidateAuthor(author);
     } else if (sessionId && itemId) {
         const item = searchFacade.getResultItem(sessionId, itemId);
+        if (!item) {
+            return res.status(404).json({ error: "Suchtreffer nicht gefunden." });
+        }
+        candidate = searchFacade.buildAuthorCandidateFromItem(item, authorIndex);
+    } else if (searchId && itemId) {
+        const item = externalJobService.getExternalSearchItem(searchId, itemId);
         if (!item) {
             return res.status(404).json({ error: "Suchtreffer nicht gefunden." });
         }
@@ -100,13 +158,19 @@ export async function importAuthor(req, res) {
 }
 
 export async function importBook(req, res) {
-    const { sessionId, itemId, book, authorIds, listIds, confirm } = req.body;
+    const { sessionId, searchId, itemId, book, authorIds, listIds, confirm } = req.body;
 
     let candidate = null;
     if (book) {
         candidate = createImportCandidateBook(book);
     } else if (sessionId && itemId) {
         const item = searchFacade.getResultItem(sessionId, itemId);
+        if (!item) {
+            return res.status(404).json({ error: "Suchtreffer nicht gefunden." });
+        }
+        candidate = searchFacade.buildBookCandidateFromItem(item);
+    } else if (searchId && itemId) {
+        const item = externalJobService.getExternalSearchItem(searchId, itemId);
         if (!item) {
             return res.status(404).json({ error: "Suchtreffer nicht gefunden." });
         }

@@ -16,10 +16,13 @@ function extractYear(publishedDate) {
     return match ? Number(match[0]) : null;
 }
 
-function buildGoogleBooksUrls(title, apiKey, limit) {
+function buildGoogleBooksUrls(title, apiKey, limit, startIndex) {
     const url = new URL("https://www.googleapis.com/books/v1/volumes");
     url.searchParams.set("q", `intitle:${title}`);
     url.searchParams.set("maxResults", String(limit));
+    if (typeof startIndex === "number" && startIndex > 0) {
+        url.searchParams.set("startIndex", String(startIndex));
+    }
     if (apiKey) {
         url.searchParams.set("key", apiKey);
     }
@@ -39,15 +42,15 @@ function createProviderError(message, code, details) {
     return error;
 }
 
-export async function searchGoogleBooks(title, { apiKey, limit = 10, fetcher = fetch } = {}) {
+export async function searchGoogleBooks(title, { apiKey, limit = 10, startIndex = 0, fetcher = fetch, signal } = {}) {
     if (!apiKey) {
         const error = new Error("GOOGLE_BOOKS_KEY_MISSING");
         error.code = "GOOGLE_BOOKS_KEY_MISSING";
         throw error;
     }
 
-    const { url, logUrl } = buildGoogleBooksUrls(title, apiKey, limit);
-    const response = await fetcher(url.toString());
+    const { url, logUrl } = buildGoogleBooksUrls(title, apiKey, limit, startIndex);
+    const response = await fetcher(url.toString(), { signal });
     if (!response.ok) {
         const bodyText = await response.text();
         throw createProviderError("GOOGLE_BOOKS_ERROR", "GOOGLE_BOOKS_ERROR", {
@@ -87,6 +90,7 @@ export async function searchGoogleBooks(title, { apiKey, limit = 10, fetcher = f
         requestUrl: logUrl.toString(),
         status: response.status,
         statusText: response.statusText,
-        limit
+        limit,
+        startIndex
     };
 }

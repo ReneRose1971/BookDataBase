@@ -25,7 +25,7 @@ function createProviderError(message, code, details) {
     return error;
 }
 
-export async function searchOpenLibrary(title, { limit = 40, fetcher = fetch } = {}) {
+export async function searchOpenLibrary(title, { limit = 40, page = 1, fetcher = fetch, signal } = {}) {
     if (!title) {
         return { items: [], totalItems: null, requestUrl: null, status: 200, statusText: "No query", limit };
     }
@@ -33,8 +33,11 @@ export async function searchOpenLibrary(title, { limit = 40, fetcher = fetch } =
     const url = new URL("https://openlibrary.org/search.json");
     url.searchParams.set("title", title);
     url.searchParams.set("limit", String(limit));
+    if (typeof page === "number" && page > 1) {
+        url.searchParams.set("page", String(page));
+    }
 
-    const response = await fetcher(url.toString());
+    const response = await fetcher(url.toString(), { signal });
     if (!response.ok) {
         const bodyText = await response.text();
         throw createProviderError("OPEN_LIBRARY_ERROR", "OPEN_LIBRARY_ERROR", {
@@ -75,6 +78,7 @@ export async function searchOpenLibrary(title, { limit = 40, fetcher = fetch } =
         requestUrl: url.toString(),
         status: response.status,
         statusText: response.statusText,
-        limit
+        limit,
+        page
     };
 }

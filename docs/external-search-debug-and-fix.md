@@ -1,48 +1,57 @@
 # Externe Suche: Debugging und Fix
 
 ## Kurzbeschreibung des Problems
-Die externe Suche lieferte bei Prefix-/Teilbegriffen unzuverlässige Treffer. Gleichzeitig wirkte die Trefferzahl oft konstant, weil nur die geladenen Ergebnisse gezählt und angezeigt wurden, obwohl die Provider selbst mehr Treffer haben können.
+Die externe Suche war limitiert (harte Limits, kein Paging) und Trefferlisten basierten auf geladenen Ergebnissen statt auf kompletter Provider-Paging-Iteration. Außerdem war ein Abbruch nicht möglich und die Backend-Logik erzwingt jetzt die „Contains“-Semantik serverseitig.
 
-## Exakter Suchfluss (Request → UI)
-1. **UI/Frontend**: Die Suche startet im Frontend und ruft `searchExternal` auf (via `/api/search/external`). Der eingegebene Titel wird aus `#searchTitle` gelesen und an das Backend gesendet.【F:public/controllers/search.controller.js†L219-L287】
-2. **Backend-Endpoint**: `/api/search/external` delegiert an `runExternalSearch` im Search-Facade und liefert die Session-Antwort zurück.【F:server/controllers/search.controller.js†L25-L49】
-3. **Search-Facade**:
-   - Erstellt/verwaltet die Session und ruft `searchExternalByTitle`.
-   - Kombiniert lokale und externe Treffer, dedupliziert und liefert Items + Counts + Provider-Status.【F:server/services/search/search-facade.service.js†L66-L129】
-4. **Provider-Calls**:
-   - Google Books: `q=intitle:<title>` mit `maxResults`.
-   - Open Library: `title=<title>` mit `limit`.
-   - DNB: `query=title all "<title>"` mit `maximumRecords`.
-   Diese Calls sind jeweils limit-basiert und **es gibt kein Paging**.【F:server/services/search/providers/google-books.provider.js†L25-L103】【F:server/services/search/providers/open-library.provider.js†L24-L83】【F:server/services/search/providers/dnb.provider.js†L96-L180】
-5. **Aggregation/Response**: Die Response enthält `items`, eine `counts`-Struktur sowie `providerStatus`. Die Trefferzahl war zuvor im Frontend als `items.length` dargestellt und damit faktisch die **Anzeige- statt Gesamtzahl**.【F:public/controllers/search.controller.js†L214-L287】
+## Neuer Suchfluss (Job-basiert, Request → UI)
+1. **UI/Frontend**: Externe Suche startet über `POST /api/search/external/start` und erhält eine `searchId`. Das UI pollt anschließend `GET /api/search/external/status/:searchId` und kann über `POST /api/search/external/cancel/:searchId` abbrechen.【F:public/controllers/search.controller.js†L244-L365】【F:public/services/search.service.js†L1-L19】
+2. **Backend-Endpoints**: Controller delegiert an den Job-Service (`startExternalSearchJob`, `getExternalSearchJobStatus`, `cancelExternalSearchJob`).【F:server/controllers/search.controller.js†L1-L110】
+3. **Search-Job**:
+   - Erstellt eine Session (inkl. lokaler Treffer) und startet parallel pro Provider einen Paging-Loop.
+   - Ergebnisse werden während des Laufens gesammelt, dedupliziert und an die Session gehängt.
+   - Das UI erhält kontinuierlich `items` + `providerProgress` mit Seiten-/Trefferständen.【F:server/services/search/external-search-job.service.js†L1-L263】
+4. **Provider-Paging**:
+   - Google Books (`startIndex`), Open Library (`page`), DNB (`startRecord`) iterieren seitenweise ohne Ergebnisdeckel.
+   - Abbruch verwendet `AbortController` und stoppt die Paging-Schleifen sofort.【F:server/services/search/external-search-job.service.js†L73-L206】【F:server/services/search/providers/google-books.provider.js†L18-L97】【F:server/services/search/providers/open-library.provider.js†L19-L83】【F:server/services/search/providers/dnb.provider.js†L102-L180】
+5. **UI-Anzeige**: „Geladen: X“ wird anhand der aktuell gelieferten Items berechnet, Provider-Fortschritt wird live angezeigt.【F:public/controllers/search.controller.js†L115-L180】
 
-## Diagnose (Ursache)
-**Hauptursache:**
-- Die externe Suche arbeitet mit **harten Provider-Limits** und **ohne Paging**. Dadurch werden immer nur die ersten N Treffer je Provider geladen. Das ist in den Provider-Requests eindeutig sichtbar (z. B. `maxResults`, `limit`, `maximumRecords`).【F:server/services/search/providers/google-books.provider.js†L25-L103】【F:server/services/search/providers/open-library.provider.js†L24-L83】【F:server/services/search/providers/dnb.provider.js†L96-L180】
-- Im Frontend wurde die Trefferzahl bisher als **Anzahl der geladenen Items** angezeigt (statt der tatsächlich verfügbaren Treffer), was den Eindruck eines konstanten Ergebnisses erzeugte.【F:public/controllers/search.controller.js†L214-L287】
+## Contains-Regel & Normalisierung
+Die Suche erzwingt serverseitig eine „Contains“-Semantik nach Normalisierung:
 
-**Nebenursache (Relevanz):**
-- Treffer wurden nicht nach Relevanz (Exact/Prefix/Contains) sortiert. Bei begrenzten Provider-Resultsets kann ein relevanter Treffer außerhalb der ersten N Treffer landen.
+```
+normalize(s):
+  trim
+  lower-case
+  mehrfach-Whitespace → 1
+  diakritische Zeichen entfernen
+```
+
+Matching-Regel: `normalize(title).includes(normalize(query))`. Diese Regel wird **immer** serverseitig geprüft, unabhängig davon, wie der Provider intern sucht. Damit werden auch Treffer akzeptiert, die den Query-String irgendwo im Titel enthalten.【F:server/services/search/external-search-job.service.js†L33-L78】
+
+## DNB-SRU/CQL Query (Wildcard)
+Verwendete DNB-Query (SRU/CQL):
+
+```
+title all "<query>*"
+```
+
+- **Wildcard/Contains**: `*` erlaubt Prefix-Matches auf dem Titelindex. Die finale Contains-Regel wird serverseitig erzwungen (siehe Abschnitt oben).
+- **Paging**: `startRecord` + `maximumRecords`.
+- **Felder/Indizes**: `title` Index im SRU-Endpoint `https://services.dnb.de/sru/dnb`, `recordSchema=dc`.【F:server/services/search/providers/dnb.provider.js†L92-L182】
 
 ## Fix (Änderungen & Begründung)
-1. **Provider-Limits transparent + Logging mit Details**
-   - Provider liefern jetzt zusätzlich `totalItems`, `limit`, `status` und eine **logbare URL ohne Secrets**.
-   - Backend loggt Query, Provider, URL, Status, Count und Total; bei Fehlern zusätzlich Status/Text und Body-Snippet.
-   - Damit ist klar, wie viele Items geladen wurden und ob ein Provider Fehler liefert.【F:server/services/search/external-search.service.js†L1-L133】【F:server/services/search/providers/google-books.provider.js†L1-L103】【F:server/services/search/providers/open-library.provider.js†L1-L83】【F:server/services/search/providers/dnb.provider.js†L1-L180】
-
-2. **Relevanz-Ranking vor Dedupe**
-   - Externe Items werden nach Exact/Prefix/Contains/Token-Match gewichtet sortiert, anschließend dedupliziert.
-   - Dadurch sollen Prefix-Treffer (z. B. „Zukunftsmedizin“ bei „Zukunfts“) in den ersten Ergebnissen erscheinen, sofern der Provider sie liefert.【F:server/services/search/search-facade.service.js†L12-L129】
-
-3. **UI: Anzeige der geladenen Treffer und Provider-Status**
-   - Die UI zeigt jetzt „Angezeigt: X“ und pro Provider `count/total` inkl. Limit und HTTP-Status (wenn vorhanden).
-   - Dadurch ist sichtbar, ob die Trefferzahl durch Limits begrenzt ist und ob ein Provider Fehler liefert.【F:public/controllers/search.controller.js†L97-L142】
-
-4. **Limit-Anpassung**
-   - Die Limits wurden moderat erhöht (Google 20, OpenLibrary 60, DNB 20), um den Recall bei Prefix-Suchen zu verbessern, ohne Paging zu implementieren.【F:server/services/search/external-search.service.js†L6-L60】
+1. **Job-basierte Suche ohne Ergebnislimit**:
+   - Paging-Schleifen je Provider iterieren bis „keine weiteren Ergebnisse“ oder manuelles Abbrechen.
+   - Es gibt keine Timeout-Mechanismen mehr im Suchlauf.【F:server/services/search/external-search-job.service.js†L73-L263】【F:server/services/search/providers/dnb.provider.js†L102-L180】
+2. **Manuelles Abbrechen**:
+   - `cancelled`-Flag + AbortController pro Provider bricht laufende Requests sofort ab.
+   - UI stellt Abbrechen-Button bereit und stoppt Polling.【F:server/services/search/external-search-job.service.js†L231-L263】【F:public/controllers/search.controller.js†L334-L365】
+3. **UI-Status & Fortschritt**:
+   - „Geladen: X“ + Provider-Fortschritt in der Statuszeile.
+   - Keine Limit-Anzeige mehr (da es kein Ergebnislimit gibt).【F:public/controllers/search.controller.js†L115-L180】
 
 ## Testprotokoll (Repro A/B/C)
-**Hinweis:** In der aktuellen Umgebung ist der Netzwerkzugriff auf externe Provider blockiert (`ENETUNREACH`). Daher konnten die externen Requests nicht ausgeführt werden. Der Fix ist jedoch so umgesetzt, dass er bei verfügbarer Netzverbindung die Provider-Response-Totalwerte und Logs liefert.
+**Hinweis:** In der aktuellen Umgebung ist der Netzwerkzugriff auf externe Provider blockiert (`ENETUNREACH`). Daher konnten die externen Requests nicht ausgeführt werden. Der Fix ist jedoch so umgesetzt, dass er bei verfügbarer Netzverbindung Paging und Contains-Regeln durchsetzt.
 
 Geplante Repro-Queries:
 - **A:** "Zukunfts"
@@ -50,10 +59,6 @@ Geplante Repro-Queries:
 - **C:** "Klima" vs. "Klimawandel"
 
 Erwartetes Verhalten nach Fix:
-- Trefferliste enthält bei Prefix-Suchen relevante Titel (z. B. „Zukunftsmedizin“), sofern der Provider sie in den geladenen Ergebnissen liefert.
-- UI zeigt „Angezeigt: X“ und pro Provider `count/total` inkl. Limit.
-- Provider-Fehler werden im Backend-Log dokumentiert und in der UI als „Fehler“ angezeigt.
-
-## Offene Punkte / Verbesserungen
-- **Paging**: Für vollständig korrekte Trefferzahlen und bessere Recall-Qualität sollte Paging implementiert werden (Backend nimmt `page/offset`, Provider verwenden `startIndex/page`, UI bietet „Mehr laden“).
-- **Provider-spezifische Ranking-Strategien**: Falls ein Provider stark abweichendes Ranking liefert, könnten Provider-spezifische Boosts nötig sein.
+- Trefferliste enthält Titel, die „zukunfts“ **irgendwo** im Titel enthalten (contains, normalisiert).
+- Treffer werden nicht künstlich auf 20/50/80 begrenzt, sondern bis zum Provider-Ende gepaged.
+- Manuelles Abbrechen stoppt laufende Requests und beendet Paging-Schleifen sofort.
