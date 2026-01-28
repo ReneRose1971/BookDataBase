@@ -33,7 +33,7 @@ export async function checkDuplicate(req, res) {
 }
 
 export async function createBook(req, res) {
-    const { title, authorIds, listIds } = req.body;
+    const { title, authorIds, listIds, summary } = req.body;
 
     if (!title || !authorIds || !Array.isArray(authorIds) || authorIds.length === 0) {
         return res.status(400).json({ error: 'Titel und mindestens ein Autor sind erforderlich.' });
@@ -43,8 +43,16 @@ export async function createBook(req, res) {
         return res.status(400).json({ error: 'Mindestens eine Bücherliste ist erforderlich.' });
     }
 
+    if (summary !== undefined && summary !== null && typeof summary !== 'string') {
+        return res.status(400).json({ error: 'Zusammenfassung muss Text sein.' });
+    }
+
+    const normalizedSummary = typeof summary === 'string'
+        ? (summary.trim() || null)
+        : summary ?? null;
+
     try {
-        const { bookId } = await booksService.createBook(title.trim(), authorIds, listIds);
+        const { bookId } = await booksService.createBook(title.trim(), authorIds, listIds, normalizedSummary);
         res.status(201).json({ book_id: bookId, title });
     } catch (error) {
         console.error('Error creating book:', error);
@@ -75,18 +83,41 @@ export async function getBookById(req, res) {
 
 export async function updateBook(req, res) {
     const bookId = parseIntParam(req, res, 'id', 'Ungültige Daten.');
-    const { title, authorIds, listIds, tagIds } = req.body;
+    const { title, authorIds, listIds, tagIds, summary } = req.body;
 
     if (bookId === null || !title || !authorIds || !Array.isArray(authorIds) || authorIds.length === 0 || !listIds || !Array.isArray(listIds) || listIds.length === 0) {
         return res.status(400).json({ error: 'Ungültige Daten.' });
     }
 
+    if (summary !== undefined && summary !== null && typeof summary !== 'string') {
+        return res.status(400).json({ error: 'Zusammenfassung muss Text sein.' });
+    }
+
+    const normalizedSummary = summary === undefined
+        ? undefined
+        : (typeof summary === 'string' ? (summary.trim() || null) : null);
+
     try {
-        await booksService.updateBook(bookId, title.trim(), authorIds, listIds, tagIds);
+        await booksService.updateBook(bookId, title.trim(), authorIds, listIds, tagIds, normalizedSummary);
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating book:', error);
         res.status(500).json({ error: 'Fehler beim Aktualisieren des Buches.' });
+    }
+}
+
+export async function generateBookSummary(req, res) {
+    const bookId = parseIntParam(req, res, 'id', 'Ungültige Buch-ID.');
+    if (bookId === null) return;
+
+    try {
+        const summary = await booksService.generateBookSummary(bookId);
+        res.json({ summary });
+    } catch (error) {
+        const status = error.status || 500;
+        const message = error.message || 'Fehler beim Erstellen der Zusammenfassung.';
+        console.error('Error generating book summary:', error);
+        res.status(status).json({ error: message });
     }
 }
 

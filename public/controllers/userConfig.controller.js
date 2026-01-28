@@ -1,10 +1,11 @@
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
-import { getJson, postJson, deleteJson, getErrorMessage } from '../api/api-client.js';
+import { getJson, postJson, putJson, deleteJson, getErrorMessage } from '../api/api-client.js';
 
 let openAiKeyStatus = false;
 let googleBooksKeyStatus = false;
 let rootElement = null;
 let disposables = null;
+let cachedPromptTemplates = null;
 
 export async function mount(ctx) {
     rootElement = ctx.root || ctx;
@@ -16,6 +17,7 @@ export async function mount(ctx) {
     disposables = createDisposables();
 
     await loadApiKeyStatus(rootElement);
+    await loadPromptTemplates(rootElement);
 
     disposables.add(addEvent(rootElement, 'click', handleButtonActions));
 }
@@ -84,21 +86,34 @@ function updateUi(rootElement) {
 
 async function handleButtonActions(event) {
     const action = event.target.dataset.apiAction;
-    if (!action) return;
+    const promptAction = event.target.dataset.promptAction;
+    if (action) {
+        switch (action) {
+            case 'save':
+                await saveApiKeys(rootElement);
+                break;
+            case 'remove-openai':
+                await removeApiKey(rootElement, 'openai');
+                break;
+            case 'remove-googlebooks':
+                await removeApiKey(rootElement, 'googlebooks');
+                break;
+            case 'cancel':
+                resetUi(rootElement);
+                break;
+        }
+        return;
+    }
 
-    switch (action) {
-        case 'save':
-            await saveApiKeys(rootElement);
-            break;
-        case 'remove-openai':
-            await removeApiKey(rootElement, 'openai');
-            break;
-        case 'remove-googlebooks':
-            await removeApiKey(rootElement, 'googlebooks');
-            break;
-        case 'cancel':
-            resetUi(rootElement);
-            break;
+    if (promptAction) {
+        switch (promptAction) {
+            case 'save':
+                await savePromptTemplates(rootElement);
+                break;
+            case 'reset':
+                resetPromptTemplates(rootElement);
+                break;
+        }
     }
 }
 
@@ -167,5 +182,67 @@ function displayError(rootElement, message) {
     const errorElement = rootElement.querySelector('.error');
     if (errorElement) {
         errorElement.textContent = message;
+    }
+}
+
+async function loadPromptTemplates(rootElement) {
+    try {
+        const prompts = await getJson('/api/config/prompts/book_summary', { cache: 'no-store' });
+        cachedPromptTemplates = prompts;
+        applyPromptTemplates(rootElement, prompts);
+        setPromptStatus(rootElement, '');
+    } catch (error) {
+        setPromptStatus(rootElement, getErrorMessage(error, 'Fehler beim Laden der Prompt-Vorlagen.'));
+    }
+}
+
+function applyPromptTemplates(rootElement, prompts) {
+    const systemPrompt = rootElement.querySelector('#book-summary-system-prompt');
+    const userPrompt = rootElement.querySelector('#book-summary-user-prompt');
+
+    if (systemPrompt) {
+        systemPrompt.value = prompts?.systemPrompt || '';
+    }
+    if (userPrompt) {
+        userPrompt.value = prompts?.userPrompt || '';
+    }
+}
+
+async function savePromptTemplates(rootElement) {
+    const systemPrompt = rootElement.querySelector('#book-summary-system-prompt');
+    const userPrompt = rootElement.querySelector('#book-summary-user-prompt');
+
+    if (!systemPrompt || !userPrompt) {
+        console.error('Prompt fields not found');
+        return;
+    }
+
+    try {
+        const payload = {
+            systemPrompt: systemPrompt.value,
+            userPrompt: userPrompt.value
+        };
+        const saved = await putJson('/api/config/prompts/book_summary', payload);
+        cachedPromptTemplates = saved;
+        applyPromptTemplates(rootElement, saved);
+        setPromptStatus(rootElement, 'Prompt-Vorlagen gespeichert.');
+    } catch (error) {
+        setPromptStatus(rootElement, getErrorMessage(error, 'Fehler beim Speichern der Prompt-Vorlagen.'));
+    }
+}
+
+function resetPromptTemplates(rootElement) {
+    if (!cachedPromptTemplates) {
+        setPromptStatus(rootElement, 'Keine Prompt-Vorlagen geladen.');
+        return;
+    }
+    applyPromptTemplates(rootElement, cachedPromptTemplates);
+    setPromptStatus(rootElement, 'Prompt-Vorlagen zurückgesetzt.');
+}
+
+function setPromptStatus(rootElement, message) {
+    const statusElement = rootElement.querySelector('[data-prompt-status]');
+    if (statusElement) {
+        statusElement.textContent = message;
     }
 }

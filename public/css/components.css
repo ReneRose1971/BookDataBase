@@ -191,3 +191,55 @@ body.modal-open {
     color: #b91c1c;
     font-weight: 600;
 }
+
+.prompt-help {
+    margin: 0.5rem 0 1rem;
+    font-size: 0.9rem;
+    color: #475569;
+}
+
+.prompt-help code {
+    background: #f1f5f9;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+}
+
+.prompt-status {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #334155;
+}
+
+.book-summary-section {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.book-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.book-summary-textarea {
+    resize: vertical;
+    min-height: 4.5rem;
+}
+
+.book-summary-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.book-summary-status {
+    font-size: 0.9rem;
+    color: #334155;
+}
