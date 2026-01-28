@@ -4,6 +4,7 @@ import { loadViewInto } from '../view-loader.js';
 import {
     searchLocal,
     startExternalSearch,
+    getExternalProviders,
     getExternalSearchStatus,
     cancelExternalSearch
 } from '../services/search.service.js';
@@ -163,7 +164,8 @@ function mapSourceLabel(source) {
         case 'dnb':
             return 'DNB';
         default:
-            return source || 'Unbekannt';
+            console.warn('Unknown provider/source:', source);
+            return source ? `Unbekannt: ${source}` : 'Unbekannt';
     }
 }
 
@@ -557,8 +559,16 @@ async function handleExternalSearch() {
     }
     try {
         setExternalSearchState(true);
+        setStatus('Lade externe Suchprovider...');
+        const providerInfo = await getExternalProviders();
+        const providers = Array.isArray(providerInfo?.enabledProviders) ? providerInfo.enabledProviders : [];
+        if (providers.length === 0) {
+            setExternalSearchState(false);
+            setStatus('Keine externen Suchprovider verfügbar. Bitte Konfiguration prüfen.', { isError: true });
+            return;
+        }
         setStatus('Externe Suche gestartet...');
-        const result = await startExternalSearch(title);
+        const result = await startExternalSearch(title, providers);
         if (!result || !result.id) {
             setExternalSearchState(false);
             setStatus('Externe Suche konnte nicht gestartet werden.', { isError: true });

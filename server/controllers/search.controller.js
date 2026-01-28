@@ -3,6 +3,7 @@ import * as externalJobService from "../services/search/external-search-job.serv
 import * as authorsService from "../services/authors.service.js";
 import * as booksService from "../services/books.service.js";
 import { createImportCandidateAuthor, createImportCandidateBook } from "../models/search.models.js";
+import { getProviderInfo } from "../services/search/search-providers.service.js";
 
 function isNonEmptyArray(value) {
     return Array.isArray(value) && value.length > 0;
@@ -41,6 +42,17 @@ export async function searchExternal(req, res) {
         }
         console.error("Error running external search:", error);
         res.status(500).json({ error: "Fehler bei der externen Suche." });
+    }
+}
+
+export async function getSearchProviders(req, res) {
+    try {
+        const providerInfo = await getProviderInfo();
+        res.set("Cache-Control", "no-store");
+        res.json(providerInfo);
+    } catch (error) {
+        console.error("Error fetching search providers:", error);
+        res.status(500).json({ error: "Fehler beim Laden der Suchprovider." });
     }
 }
 

@@ -8,6 +8,10 @@ export async function startExternalSearch(query, providers) {
     return postJson('/api/search/external/start', { query, providers });
 }
 
+export async function getExternalProviders() {
+    return getJson('/api/search/providers');
+}
+
 export async function getExternalSearchStatus(searchId) {
     return getJson(`/api/search/external/status/${searchId}`);
 }
