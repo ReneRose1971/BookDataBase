@@ -8,11 +8,11 @@ import {
     getSearchSession,
     purgeExpiredSessions
 } from "./search-session.store.js";
+import { normalizeProviders, SUPPORTED_PROVIDERS } from "./search-providers.service.js";
 import { searchGoogleBooks } from "./providers/google-books.provider.js";
 import { searchOpenLibrary } from "./providers/open-library.provider.js";
 import { searchDnb } from "./providers/dnb.provider.js";
 
-const PROVIDERS = [SearchSource.GOOGLE_BOOKS, SearchSource.OPEN_LIBRARY, SearchSource.DNB];
 const PROVIDER_PAGE_SIZES = Object.freeze({
     [SearchSource.GOOGLE_BOOKS]: 20,
     [SearchSource.OPEN_LIBRARY]: 50,
@@ -36,13 +36,6 @@ function purgeExpiredJobs() {
             jobs.delete(searchId);
         }
     }
-}
-
-function normalizeProviders(requestedProviders) {
-    if (!Array.isArray(requestedProviders) || requestedProviders.length === 0) {
-        return PROVIDERS;
-    }
-    return requestedProviders.filter((provider) => PROVIDERS.includes(provider));
 }
 
 function buildItemKey(item) {
@@ -350,7 +343,7 @@ export function cancelExternalSearchJob(searchId) {
     for (const controller of job.abortControllers.values()) {
         controller.abort();
     }
-    for (const provider of PROVIDERS) {
+    for (const provider of SUPPORTED_PROVIDERS) {
         if (job.providerProgress[provider]?.status === "running") {
             updateProviderProgress(job, provider, { status: "cancelled" });
         }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
     searchLocal,
     searchExternal,
+    getSearchProviders,
     startExternalSearch,
     getExternalSearchStatus,
     cancelExternalSearch,
@@ -14,6 +15,7 @@ const router = Router();
 
 router.post("/api/search/local", searchLocal);
 router.post("/api/search/external", searchExternal);
+router.get("/api/search/providers", getSearchProviders);
 router.post("/api/search/external/start", startExternalSearch);
 router.get("/api/search/external/status/:searchId", getExternalSearchStatus);
 router.post("/api/search/external/cancel/:searchId", cancelExternalSearch);

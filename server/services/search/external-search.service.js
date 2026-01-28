@@ -1,10 +1,10 @@
 import { getApiKey } from "../../../config/config-store.js";
 import { SearchSource, normalizeTitleInput } from "../../models/search.models.js";
+import { normalizeProviders } from "./search-providers.service.js";
 import { searchGoogleBooks } from "./providers/google-books.provider.js";
 import { searchOpenLibrary } from "./providers/open-library.provider.js";
 import { searchDnb } from "./providers/dnb.provider.js";
 
-const PROVIDERS = [SearchSource.GOOGLE_BOOKS, SearchSource.OPEN_LIBRARY, SearchSource.DNB];
 const PROVIDER_LIMITS = Object.freeze({
     [SearchSource.GOOGLE_BOOKS]: 20,
     [SearchSource.OPEN_LIBRARY]: 60,
@@ -27,13 +27,6 @@ function logProviderError({ provider, query, error }) {
     console.error(
         `[ExternalSearch] provider=${provider} query="${query}" error=${error?.code || error?.message || "unknown"}${status}${statusText}${requestUrl}${snippet}`
     );
-}
-
-function normalizeProviders(requestedProviders) {
-    if (!Array.isArray(requestedProviders) || requestedProviders.length === 0) {
-        return PROVIDERS;
-    }
-    return requestedProviders.filter((provider) => PROVIDERS.includes(provider));
 }
 
 export async function searchExternalByTitle(title, { providers } = {}) {
