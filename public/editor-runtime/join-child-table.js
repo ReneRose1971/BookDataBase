@@ -1,5 +1,6 @@
 import { createDisposables, addEvent } from './disposables.js';
 import { enableSingleRowSelection } from '../ui-helpers.js';
+import { loadViewInto } from '../view-loader.js';
 
 const DEFAULT_TEXTS = {
     addLabel: 'Einfügen',
@@ -63,6 +64,10 @@ export function createJoinChildTableController(config) {
     let selectedKey = null;
 
     let elements = null;
+    let inlinePickerHandle = null;
+
+    const inlineConfig = config.inlinePicker || null;
+    const inlineEnabled = inlineConfig && inlineConfig.enabled;
 
     const cacheElements = () => {
         const label = root.querySelector('[data-join-label]');
@@ -70,6 +75,7 @@ export function createJoinChildTableController(config) {
         const tableBody = root.querySelector('[data-join-table-body]');
         const addButton = root.querySelector('[data-join-action="add"]');
         const removeButton = root.querySelector('[data-join-action="remove"]');
+        const inlineHost = root.querySelector('[data-inline-picker-host]');
         const modal = root.querySelector('[data-join-modal]');
         const modalTitle = root.querySelector('[data-join-modal-title]');
         const select = root.querySelector('[data-join-select]');
@@ -82,6 +88,7 @@ export function createJoinChildTableController(config) {
             tableBody,
             addButton,
             removeButton,
+            inlineHost,
             modal,
             modalTitle,
             select,
@@ -157,6 +164,57 @@ export function createJoinChildTableController(config) {
         elements.modal.classList.add('hidden');
     };
 
+    const closeInlinePicker = () => {
+        if (inlinePickerHandle) {
+            inlinePickerHandle.dispose();
+            if (inlineConfig && typeof inlineConfig.manager?.clearActive === 'function') {
+                inlineConfig.manager.clearActive(inlinePickerHandle);
+            }
+            inlinePickerHandle = null;
+        }
+    };
+
+    const openInlinePicker = async () => {
+        if (!elements.inlineHost) return;
+        if (inlineConfig && typeof inlineConfig.manager?.closeActive === 'function') {
+            inlineConfig.manager.closeActive(inlinePickerHandle);
+        }
+        closeInlinePicker();
+        await refreshAvailable();
+
+        const viewPath = inlineConfig?.viewPath || '/views/pickers/inline-entity-picker.view.html';
+        const controllerPath = inlineConfig?.controllerPath || '/controllers/inline-entity-picker.controller.js';
+        const inlineContext = {
+            items: availableItems.slice(),
+            getKey,
+            getLabel: getOptionLabel,
+            texts: {
+                title: resolvedTexts.modalTitle,
+                confirmLabel: resolvedTexts.confirmLabel,
+                cancelLabel: resolvedTexts.cancelLabel,
+                selectPlaceholder: resolvedTexts.selectPlaceholder,
+                messages: resolvedTexts.messages
+            },
+            onConfirm: async (selectedKey) => {
+                await handleAddConfirm(selectedKey);
+            },
+            onCancel: () => {
+                closeInlinePicker();
+            }
+        };
+
+        inlinePickerHandle = await loadViewInto({
+            targetEl: elements.inlineHost,
+            viewPath,
+            controllerPath,
+            context: inlineContext
+        });
+
+        if (inlineConfig && typeof inlineConfig.manager?.setActive === 'function') {
+            inlineConfig.manager.setActive(inlinePickerHandle);
+        }
+    };
+
     const refreshAssigned = async () => {
         assignedItems = (await config.loadAssigned(ctx)) || [];
         selectedKey = null;
@@ -175,8 +233,10 @@ export function createJoinChildTableController(config) {
         }
     };
 
-    const handleAddConfirm = async () => {
-        const selectedValue = elements.select ? String(elements.select.value || '') : '';
+    const handleAddConfirm = async (valueOverride = null) => {
+        const selectedValue = valueOverride !== null
+            ? String(valueOverride || '')
+            : (elements.select ? String(elements.select.value || '') : '');
         if (!selectedValue) {
             alert(resolvedTexts.messages.selectRequired);
             return;
@@ -193,7 +253,11 @@ export function createJoinChildTableController(config) {
         await refreshAssigned();
         await refreshAvailable();
         await notifyChanged();
-        closeModal();
+        if (inlineEnabled) {
+            closeInlinePicker();
+        } else {
+            closeModal();
+        }
     };
 
     const handleRemoveConfirm = async () => {
@@ -225,7 +289,11 @@ export function createJoinChildTableController(config) {
         const action = actionElement.dataset.joinAction;
         switch (action) {
             case 'add':
-                openModal();
+                if (inlineEnabled) {
+                    await openInlinePicker();
+                } else {
+                    openModal();
+                }
                 break;
             case 'remove':
                 await handleRemoveConfirm();
@@ -255,6 +323,9 @@ export function createJoinChildTableController(config) {
         disposables = createDisposables();
 
         cacheElements();
+        if (elements.inlineHost && inlineConfig && inlineConfig.hostKey) {
+            elements.inlineHost.dataset.inlinePickerHost = inlineConfig.hostKey;
+        }
 
         if (elements.label) {
             elements.label.textContent = config.sectionLabel || resolvedTexts.sectionLabel || '';
@@ -295,6 +366,7 @@ export function createJoinChildTableController(config) {
     };
 
     const dispose = () => {
+        closeInlinePicker();
         if (disposables) {
             disposables.disposeAll();
         }

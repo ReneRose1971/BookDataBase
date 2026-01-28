@@ -130,6 +130,28 @@ body.modal-open {
     flex-shrink: 0;
 }
 
+.inline-picker-panel {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f5f6f8;
+    border: 1px solid #d9dde3;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.inline-picker-title {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.inline-picker-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
 .api-key-form {
     width: 70vh;
     margin-top: 1rem;

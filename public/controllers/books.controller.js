@@ -138,6 +138,26 @@ async function renderBookEditor(mode, bookId = null) {
     let tagsById = new Map();
 
     let bookData = null;
+    const inlinePickerManager = {
+        activeHandle: null,
+        setActive(handle) {
+            if (this.activeHandle && this.activeHandle !== handle) {
+                this.activeHandle.dispose();
+            }
+            this.activeHandle = handle;
+        },
+        closeActive(exceptHandle = null) {
+            if (this.activeHandle && this.activeHandle !== exceptHandle) {
+                this.activeHandle.dispose();
+                this.activeHandle = null;
+            }
+        },
+        clearActive(handle) {
+            if (!handle || this.activeHandle === handle) {
+                this.activeHandle = null;
+            }
+        }
+    };
 
     const getAuthorId = (author) => author.author_id ?? author.id ?? author.authorId ?? author.AuthorId;
     const getListId = (list) => list.book_list_id ?? list.id ?? list.bookListId ?? list.BookListId;
@@ -391,6 +411,13 @@ async function renderBookEditor(mode, bookId = null) {
         confirmRemoveText: (list) => {
             if (!list) return 'Liste wirklich entfernen?';
             return `Liste "${list.name}" wirklich entfernen?`;
+        },
+        inlinePicker: {
+            enabled: true,
+            hostKey: 'book-lists',
+            viewPath: '/views/pickers/inline-entity-picker.view.html',
+            controllerPath: '/controllers/inline-entity-picker.controller.js',
+            manager: inlinePickerManager
         }
     });
 
@@ -428,6 +455,13 @@ async function renderBookEditor(mode, bookId = null) {
         confirmRemoveText: (tag) => {
             if (!tag) return 'Tag wirklich entfernen?';
             return `Tag "${tag.name}" wirklich entfernen?`;
+        },
+        inlinePicker: {
+            enabled: true,
+            hostKey: 'tags',
+            viewPath: '/views/pickers/inline-entity-picker.view.html',
+            controllerPath: '/controllers/inline-entity-picker.controller.js',
+            manager: inlinePickerManager
         }
     });
 
@@ -443,6 +477,7 @@ async function renderBookEditor(mode, bookId = null) {
         await tagsController.mount(tagsHost, joinContext);
         editorDisposables.add(() => tagsController.dispose());
     }
+    editorDisposables.add(() => inlinePickerManager.closeActive());
 }
 
 async function setEditorMode(mode) {
