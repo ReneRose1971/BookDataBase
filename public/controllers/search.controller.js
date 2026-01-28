@@ -730,24 +730,73 @@ function handleFilterClear() {
 async function handleImportAuthor(itemId, triggerEl) {
     const item = itemsById.get(itemId);
     if (!item) return;
-    setStatus('Importiere Autor...');
-    try {
-        await importAuthor(item.itemId, { sessionId });
-        setStatus('Autor importiert.');
-    } catch (error) {
-        setStatus(getErrorMessage(error, 'Autorimport fehlgeschlagen.'), { isError: true });
-    }
+    openImportModal({
+        childViewName: 'search-import-author',
+        title: 'Autor importieren',
+        triggerEl,
+        context: {
+            itemId: item.itemId,
+            sessionId,
+            item,
+            setStatus
+        }
+    });
 }
 
 async function handleImportBook(itemId, triggerEl) {
     const item = itemsById.get(itemId);
     if (!item) return;
-    setStatus('Importiere Buch...');
-    try {
-        await importBook(item.itemId, { sessionId });
-        setStatus('Buch importiert.');
-    } catch (error) {
-        setStatus(getErrorMessage(error, 'Buchimport fehlgeschlagen.'), { isError: true });
+    openImportModal({
+        childViewName: 'search-import-book',
+        title: 'Buch importieren',
+        triggerEl,
+        context: {
+            itemId: item.itemId,
+            sessionId,
+            item,
+            searchId: externalSearchId,
+            setStatus
+        }
+    });
+}
+
+function closeActiveModal() {
+    if (!activeModal) return;
+    const modalController = activeModal?.controller;
+    if (modalController && typeof modalController.close === 'function') {
+        modalController.close({ skipFocusRestore: true, skipOnClose: true });
+    }
+    if (activeModal.dispose) {
+        activeModal.dispose();
+    }
+    activeModal = null;
+}
+
+async function openImportModal({ childViewName, title, context, triggerEl }) {
+    if (!rootElement) return;
+    closeActiveModal();
+    const modalHost = document.createElement('div');
+    document.body.appendChild(modalHost);
+    const modalHandle = await loadViewInto({
+        targetEl: modalHost,
+        viewPath: '/views/modal/modal-shell.view.html',
+        controllerPath: '/controllers/modal-shell.controller.js'
+    });
+    const modalController = modalHandle?.controller;
+    activeModal = modalHandle;
+    if (modalController && typeof modalController.open === 'function') {
+        await modalController.open({
+            title,
+            childViewName,
+            context,
+            triggerEl,
+            onClose: () => {
+                if (activeModal?.dispose) {
+                    activeModal.dispose();
+                }
+                activeModal = null;
+            }
+        });
     }
 }
 
