@@ -635,16 +635,15 @@ function handleRootClick(event) {
         return;
     }
 
-    const action = event.target?.getAttribute('data-action');
-    if (!action) return;
-    const itemId = event.target?.getAttribute('data-item-id');
-    if (!itemId) return;
-    const item = itemsById.get(itemId);
-    if (!item) return;
+    const actionButton = event.target?.closest?.('[data-action]');
+    if (!actionButton) return;
+    const action = actionButton.getAttribute('data-action');
+    const itemId = actionButton.getAttribute('data-item-id');
+    if (!action || !itemId) return;
     if (action === 'import-author') {
-        handleImportAuthor(item);
+        handleImportAuthor(itemId, actionButton);
     } else if (action === 'import-book') {
-        handleImportBook(item);
+        handleImportBook(itemId, actionButton);
     }
 }
 
@@ -728,7 +727,9 @@ function handleFilterClear() {
     }
 }
 
-async function handleImportAuthor(item) {
+async function handleImportAuthor(itemId, triggerEl) {
+    const item = itemsById.get(itemId);
+    if (!item) return;
     setStatus('Importiere Autor...');
     try {
         await importAuthor(item.itemId, { sessionId });
@@ -738,7 +739,9 @@ async function handleImportAuthor(item) {
     }
 }
 
-async function handleImportBook(item) {
+async function handleImportBook(itemId, triggerEl) {
+    const item = itemsById.get(itemId);
+    if (!item) return;
     setStatus('Importiere Buch...');
     try {
         await importBook(item.itemId, { sessionId });
