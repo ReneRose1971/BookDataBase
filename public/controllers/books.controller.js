@@ -178,6 +178,8 @@ async function renderBookEditor(mode, bookId = null) {
         const authorIds = assignedAuthors.map(a => getAuthorId(a));
         const listIds = assignedLists.map(l => getListId(l));
         const tagIds = assignedTags.map(t => getTagId(t)).filter(id => id !== undefined && id !== null);
+        const summary = summaryInput ? summaryInput.value.trim() : null;
+        const summaryPayload = summary ? summary : null;
 
         let checkData = null;
         try {
@@ -197,9 +199,9 @@ async function renderBookEditor(mode, bookId = null) {
 
         try {
             if (method === 'PUT') {
-                await putJson(url, { title, authorIds, listIds, tagIds });
+                await putJson(url, { title, authorIds, listIds, tagIds, summary: summaryPayload });
             } else {
-                await postJson(url, { title, authorIds, listIds, tagIds });
+                await postJson(url, { title, authorIds, listIds, tagIds, summary: summaryPayload });
             }
             const books = await fetchBooks();
             renderBooksTable(rootElement, books);
@@ -231,6 +233,11 @@ async function renderBookEditor(mode, bookId = null) {
     }
 
     const titleInput = editorRoot.querySelector('#bookTitle');
+    const summarySection = editorRoot.querySelector('[data-book-summary]');
+    const summaryToggle = editorRoot.querySelector('[data-summary-action="toggle"]');
+    const summaryInput = editorRoot.querySelector('#bookSummary');
+    const summaryGenerateButton = editorRoot.querySelector('[data-summary-action="generate"]');
+    const summaryStatus = editorRoot.querySelector('[data-summary-status]');
     const authorsHost = editorRoot.querySelector('[data-editor-part="book-authors"]');
     const listsHost = editorRoot.querySelector('[data-editor-part="book-lists"]');
     const tagsHost = editorRoot.querySelector('[data-editor-part="book-tags"]');
@@ -279,6 +286,9 @@ async function renderBookEditor(mode, bookId = null) {
         if (titleInput) {
             titleInput.value = bookData.title || '';
         }
+        if (summaryInput) {
+            summaryInput.value = bookData.summary || '';
+        }
         assignedAuthors = Array.isArray(bookData.authors) ? bookData.authors : [];
         if (Array.isArray(bookData.listIds)) {
             assignedLists = allLists.filter((list) => bookData.listIds.includes(getListId(list)));
@@ -299,6 +309,8 @@ async function renderBookEditor(mode, bookId = null) {
         }
         const authorIds = nextAuthors.map(a => getAuthorId(a)).filter(id => id !== undefined && id !== null);
         const listIds = nextLists.map(l => getListId(l)).filter(id => id !== undefined && id !== null);
+        const summary = summaryInput ? summaryInput.value.trim() : null;
+        const summaryPayload = summary ? summary : null;
 
         if (authorIds.length === 0) {
             alert('Ein Buch muss mindestens einen Autor haben.');
@@ -310,7 +322,12 @@ async function renderBookEditor(mode, bookId = null) {
         }
 
         try {
-            await putJson(`/api/books/${bookId}`, { title, authorIds, listIds });
+            await putJson(`/api/books/${bookId}`, {
+                title,
+                authorIds,
+                listIds,
+                summary: summaryPayload
+            });
         } catch (error) {
             alert(getErrorMessage(error, 'Fehler beim Aktualisieren.'));
             return false;
@@ -477,6 +494,55 @@ async function renderBookEditor(mode, bookId = null) {
         await tagsController.mount(tagsHost, joinContext);
         editorDisposables.add(() => tagsController.dispose());
     }
+    if (summarySection && summaryInput && summaryToggle) {
+        const setSummaryExpanded = (expanded) => {
+            summarySection.classList.toggle('is-collapsed', !expanded);
+            summaryToggle.textContent = expanded ? 'Einklappen' : 'Ausklappen';
+            summaryInput.rows = expanded ? 10 : 4;
+        };
+
+        setSummaryExpanded(false);
+
+        editorDisposables.add(addEvent(summaryToggle, 'click', () => {
+            const isCollapsed = summarySection.classList.contains('is-collapsed');
+            setSummaryExpanded(isCollapsed);
+        }));
+    }
+
+    if (summaryGenerateButton) {
+        if (!bookId) {
+            summaryGenerateButton.disabled = true;
+        } else {
+            editorDisposables.add(addEvent(summaryGenerateButton, 'click', async () => {
+                summaryGenerateButton.disabled = true;
+                if (summaryStatus) {
+                    summaryStatus.textContent = 'Zusammenfassung wird erstellt...';
+                }
+                try {
+                    const result = await postJson(`/api/books/${bookId}/summary`);
+                    if (summaryInput) {
+                        summaryInput.value = result?.summary || '';
+                    }
+                    if (summarySection && summaryToggle && summaryInput) {
+                        summarySection.classList.remove('is-collapsed');
+                        summaryToggle.textContent = 'Einklappen';
+                        summaryInput.rows = 10;
+                    }
+                    if (summaryStatus) {
+                        summaryStatus.textContent = 'Zusammenfassung aktualisiert.';
+                    }
+                } catch (error) {
+                    alert(getErrorMessage(error, 'Fehler beim Erstellen der Zusammenfassung.'));
+                    if (summaryStatus) {
+                        summaryStatus.textContent = '';
+                    }
+                } finally {
+                    summaryGenerateButton.disabled = false;
+                }
+            }));
+        }
+    }
+
     editorDisposables.add(() => inlinePickerManager.closeActive());
 }
 

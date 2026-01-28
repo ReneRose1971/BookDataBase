@@ -7,6 +7,12 @@
         "html": "/views/editors/parts/book-header.part.html"
       }
     ],
+    "summary": [
+      {
+        "name": "book-summary",
+        "html": "/views/editors/parts/book-summary.part.html"
+      }
+    ],
     "authors": [
       {
         "name": "book-authors",

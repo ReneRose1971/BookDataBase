@@ -39,7 +39,7 @@ export async function checkDuplicate(title, authorIds, bookId) {
 }
 
 export async function fetchBookById(bookId) {
-    const query = 'SELECT book_id, title FROM books WHERE book_id = $1';
+    const query = 'SELECT book_id, title, summary FROM books WHERE book_id = $1';
     return pool.query(query, [bookId]);
 }
 
@@ -71,8 +71,30 @@ export async function fetchBookTags(bookId) {
     return pool.query(query, [bookId]);
 }
 
-export async function insertBook(db, title) {
-    return db.query('INSERT INTO books (title) VALUES ($1) RETURNING book_id', [title]);
+export async function fetchBookListNames(bookId) {
+    const query = `
+        SELECT bl.name
+        FROM book_lists bl
+        JOIN book_book_lists bbl ON bl.book_list_id = bbl.book_list_id
+        WHERE bbl.book_id = $1
+        ORDER BY bl.name ASC
+    `;
+    return pool.query(query, [bookId]);
+}
+
+export async function fetchBookTagNames(bookId) {
+    const query = `
+        SELECT t.name
+        FROM tags t
+        JOIN book_tags bt ON t.tag_id = bt.tag_id
+        WHERE bt.book_id = $1
+        ORDER BY t.name ASC
+    `;
+    return pool.query(query, [bookId]);
+}
+
+export async function insertBook(db, title, summary) {
+    return db.query('INSERT INTO books (title, summary) VALUES ($1, $2) RETURNING book_id', [title, summary]);
 }
 
 export async function insertBookAuthor(db, bookId, authorId) {
@@ -85,6 +107,10 @@ export async function insertBookList(db, bookId, listId) {
 
 export async function updateBookTitle(db, bookId, title) {
     return db.query('UPDATE books SET title = $1, updated_at = NOW() WHERE book_id = $2', [title, bookId]);
+}
+
+export async function updateBookSummary(db, bookId, summary) {
+    return db.query('UPDATE books SET summary = $1, updated_at = NOW() WHERE book_id = $2', [summary, bookId]);
 }
 
 export async function deleteBookAuthors(db, bookId) {

@@ -1,5 +1,8 @@
 import pool from "../db/pool.js";
 import * as booksRepo from "../repositories/books.repo.js";
+import { getApiKey } from "../../config/config-store.js";
+import { getPrompt } from "./prompt.service.js";
+import { createChatCompletion } from "./openai.service.js";
 
 export async function listBooks(listId) {
     return booksRepo.fetchBooks(listId);
@@ -20,12 +23,12 @@ export async function getBookDetails(bookId) {
     return { bookRes, authorsRes, listsRes, tagsRes };
 }
 
-export async function createBook(title, authorIds, listIds) {
+export async function createBook(title, authorIds, listIds, summary = null) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
-        const bookResult = await booksRepo.insertBook(client, title);
+        const bookResult = await booksRepo.insertBook(client, title, summary);
         const bookId = bookResult.rows[0].book_id;
 
         for (const authorId of authorIds) {
@@ -46,12 +49,15 @@ export async function createBook(title, authorIds, listIds) {
     }
 }
 
-export async function updateBook(bookId, title, authorIds, listIds, tagIds) {
+export async function updateBook(bookId, title, authorIds, listIds, tagIds, summary) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
         await booksRepo.updateBookTitle(client, bookId, title);
+        if (summary !== undefined) {
+            await booksRepo.updateBookSummary(client, bookId, summary);
+        }
 
         await booksRepo.deleteBookAuthors(client, bookId);
         for (const authorId of authorIds) {
@@ -77,6 +83,59 @@ export async function updateBook(bookId, title, authorIds, listIds, tagIds) {
     } finally {
         client.release();
     }
+}
+
+export async function generateBookSummary(bookId) {
+    const apiKey = await getApiKey("openai");
+    if (!apiKey) {
+        const error = new Error("OpenAI API-Key fehlt.");
+        error.status = 400;
+        throw error;
+    }
+
+    const [bookRes, authorsRes, listsRes, tagsRes] = await Promise.all([
+        booksRepo.fetchBookById(bookId),
+        booksRepo.fetchBookAuthors(bookId),
+        booksRepo.fetchBookListNames(bookId),
+        booksRepo.fetchBookTagNames(bookId)
+    ]);
+
+    if (bookRes.rowCount === 0) {
+        const error = new Error("Buch nicht gefunden.");
+        error.status = 404;
+        throw error;
+    }
+
+    const book = bookRes.rows[0];
+    const promptTemplates = await getPrompt("book_summary");
+
+    const authors = authorsRes.rows
+        .map((author) => `${author.first_name} ${author.last_name}`.trim())
+        .filter(Boolean)
+        .join(", ");
+    const lists = listsRes.rows.map((row) => row.name).filter(Boolean).join(", ");
+    const tags = tagsRes.rows.map((row) => row.name).filter(Boolean).join(", ");
+
+    const templateData = {
+        title: book.title ?? "",
+        authors,
+        lists,
+        tags
+    };
+
+    const applyTemplate = (template) => template.replace(/{{\s*([\w-]+)\s*}}/g, (_, key) => templateData[key] ?? "");
+
+    const systemPrompt = applyTemplate(promptTemplates.systemPrompt);
+    const userPrompt = applyTemplate(promptTemplates.userPrompt);
+
+    const summary = await createChatCompletion({
+        apiKey,
+        systemPrompt,
+        userPrompt
+    });
+
+    await booksRepo.updateBookSummary(pool, bookId, summary);
+    return summary;
 }
 
 export async function deleteBook(bookId) {
