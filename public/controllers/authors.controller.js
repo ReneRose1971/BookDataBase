@@ -23,6 +23,7 @@ export async function mount(ctx) {
     disposables.add(enableSingleRowSelection(tbody, (id) => {
         selectedAuthorId = Number(id);
     }));
+    disposables.add(addEvent(tbody, 'dblclick', handleAuthorRowDoubleClick));
 }
 
 export function unmount() {
@@ -197,6 +198,15 @@ function handleAuthorActions(event) {
         default:
             break;
     }
+}
+
+function handleAuthorRowDoubleClick(event) {
+    if (event.target.closest('button, a, [data-author-action]')) return;
+    const tbody = rootElement?.querySelector('tbody');
+    const row = event.target.closest('tr[data-id]');
+    if (!tbody || !row || !tbody.contains(row)) return;
+    selectedAuthorId = Number(row.dataset.id);
+    setEditorMode('edit');
 }
 
 async function handleConfirm(event) {
