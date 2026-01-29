@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "node ./scripts/migrate-add-summary-column.js",
+    "schema:export": "node ./scripts/export-schema.js"
   },
   "dependencies": {
     "dotenv": "^10.0.0",
