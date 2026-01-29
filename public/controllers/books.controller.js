@@ -383,6 +383,13 @@ async function renderBookEditor(mode, bookId = null) {
         confirmRemoveText: (author) => {
             if (!author) return 'Autor wirklich entfernen?';
             return `Autor ${author.first_name} ${author.last_name} wirklich entfernen?`;
+        },
+        inlinePicker: {
+            enabled: true,
+            hostKey: 'book-authors',
+            viewPath: '/views/pickers/inline-entity-picker.view.html',
+            controllerPath: '/controllers/inline-entity-picker.controller.js',
+            manager: inlinePickerManager
         }
     });
 
