@@ -67,7 +67,7 @@ export function createJoinChildTableController(config) {
     let inlinePickerHandle = null;
 
     const inlineConfig = config.inlinePicker || null;
-    const inlineEnabled = inlineConfig && inlineConfig.enabled;
+    const inlineEnabled = inlineConfig && inlineConfig.enabled !== false;
 
     const cacheElements = () => {
         const label = root.querySelector('[data-join-label]');
