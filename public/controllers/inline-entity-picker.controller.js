@@ -1,4 +1,5 @@
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
+import { notifySelectionRequired } from '../services/notify.service.js';
 
 const DEFAULT_TEXTS = {
     title: 'Eintrag auswählen',
@@ -89,7 +90,7 @@ export async function mount(ctx) {
     const handleConfirm = async () => {
         const selectedValue = selectEl ? String(selectEl.value || '') : '';
         if (!selectedValue) {
-            alert(texts.messages.selectRequired);
+            notifySelectionRequired(texts.messages.selectRequired);
             return;
         }
         const selectedItem = items.find((item) => getKey(item) === selectedValue) || null;

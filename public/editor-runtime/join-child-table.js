@@ -1,6 +1,7 @@
 import { createDisposables, addEvent } from './disposables.js';
 import { enableSingleRowSelection } from '../ui-helpers.js';
 import { loadViewInto } from '../view-loader.js';
+import { notify, notifySelectionRequired } from '../services/notify.service.js';
 
 const DEFAULT_TEXTS = {
     addLabel: 'Einfügen',
@@ -238,12 +239,12 @@ export function createJoinChildTableController(config) {
             ? String(valueOverride || '')
             : (elements.select ? String(elements.select.value || '') : '');
         if (!selectedValue) {
-            alert(resolvedTexts.messages.selectRequired);
+            notifySelectionRequired(resolvedTexts.messages.selectRequired);
             return;
         }
         const duplicate = assignedItems.some((item) => getKey(item) === selectedValue);
         if (duplicate) {
-            alert(resolvedTexts.messages.duplicate);
+            notify(resolvedTexts.messages.duplicate);
             return;
         }
         if (typeof config.beforeAdd === 'function') {
@@ -262,7 +263,7 @@ export function createJoinChildTableController(config) {
 
     const handleRemoveConfirm = async () => {
         if (!selectedKey) {
-            alert(resolvedTexts.messages.removeSelectRequired);
+            notifySelectionRequired(resolvedTexts.messages.removeSelectRequired);
             return;
         }
         const selectedItem = assignedItems.find((item) => getKey(item) === selectedKey);

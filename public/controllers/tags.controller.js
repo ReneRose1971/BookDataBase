@@ -2,6 +2,7 @@ import { enableSingleRowSelection } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
 import { getJson, postJson, putJson, deleteJson, getErrorMessage } from '../api/api-client.js';
+import { notify, notifySelectionRequired, notifyNotFound } from '../services/notify.service.js';
 
 let selectedTagId = null;
 let editorMode = 'create';
@@ -73,7 +74,7 @@ function handleRootActions(event) {
 
 function handleTagActions(action) {
     if (!selectedTagId && (action === 'edit' || action === 'delete')) {
-        alert('Bitte Tag auswählen.');
+        notifySelectionRequired('Bitte Tag auswählen.');
         return;
     }
 
@@ -93,12 +94,12 @@ function handleTagActions(action) {
 async function setEditorMode(mode) {
     if (mode === 'edit') {
         if (!selectedTagId) {
-            alert('Bitte Tag auswählen.');
+            notifySelectionRequired('Bitte Tag auswählen.');
             return;
         }
         const selectedTag = cachedTags.find(tag => tag.tag_id === selectedTagId);
         if (!selectedTag) {
-            alert('Ausgewähltes Tag nicht gefunden.');
+            notifyNotFound('Ausgewähltes Tag nicht gefunden.');
             return;
         }
         editorMode = mode;
@@ -148,13 +149,13 @@ async function renderEditor(value) {
 
 async function deleteSelectedTag() {
     if (!selectedTagId) {
-        alert('Bitte Tag auswählen.');
+        notifySelectionRequired('Bitte Tag auswählen.');
         return;
     }
     const selectedTag = cachedTags.find(tag => tag.tag_id === selectedTagId);
 
     if (!selectedTag) {
-        alert('Ausgewähltes Tag nicht gefunden.');
+        notifyNotFound('Ausgewähltes Tag nicht gefunden.');
         return;
     }
     if (selectedTag.book_count > 0) {
@@ -170,7 +171,7 @@ async function deleteSelectedTag() {
         renderTagsTable(rootElement, cachedTags);
         removeEditor();
     } catch (e) {
-        alert(getErrorMessage(e));
+        notify(getErrorMessage(e));
         console.error(e);
     }
 }
@@ -181,23 +182,23 @@ async function handleConfirm(event) {
     if (!input) return;
     const name = input.value.trim();
     if (!name) {
-        alert('Name ist erforderlich.');
+        notify('Name ist erforderlich.');
         return;
     }
 
     if (editorMode === 'edit') {
         if (!selectedTagId) {
-            alert('Bitte Tag auswählen.');
+            notifySelectionRequired('Bitte Tag auswählen.');
             return;
         }
         if (isDuplicateTagName(name, selectedTagId)) {
-            alert('Tag existiert bereits.');
+            notify('Tag existiert bereits.');
             return;
         }
         await updateTag(name);
     } else {
         if (isDuplicateTagName(name)) {
-            alert('Tag existiert bereits.');
+            notify('Tag existiert bereits.');
             return;
         }
         await createTag(name);
@@ -216,7 +217,7 @@ async function createTag(name) {
         renderTagsTable(rootElement, cachedTags);
         removeEditor();
     } catch (e) {
-        alert(getErrorMessage(e, 'Fehler beim Erstellen des Tags.'));
+        notify(getErrorMessage(e, 'Fehler beim Erstellen des Tags.'));
     }
 }
 
@@ -227,7 +228,7 @@ async function updateTag(name) {
         renderTagsTable(rootElement, cachedTags);
         removeEditor();
     } catch (e) {
-        alert(getErrorMessage(e, 'Fehler beim Aktualisieren des Tags.'));
+        notify(getErrorMessage(e, 'Fehler beim Aktualisieren des Tags.'));
     }
 }
 

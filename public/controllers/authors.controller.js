@@ -2,6 +2,7 @@ import { enableSingleRowSelection, confirmDanger } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
 import { getJson, postJson, putJson, deleteJson, getErrorMessage } from '../api/api-client.js';
+import { notify, notifySelectionRequired, notifyNotFound } from '../services/notify.service.js';
 
 let selectedAuthorId = null;
 let cachedAuthors = [];
@@ -69,12 +70,12 @@ function renderAuthorsTable(rootElement, authors) {
 async function setEditorMode(mode) {
     if (mode === 'edit') {
         if (!selectedAuthorId) {
-            alert('Bitte zuerst einen Autor auswählen.');
+            notifySelectionRequired('Bitte zuerst einen Autor auswählen.');
             return;
         }
         const selectedAuthor = cachedAuthors.find((author) => Number(author.author_id) === selectedAuthorId);
         if (!selectedAuthor) {
-            alert('Ausgewählter Autor nicht gefunden.');
+            notifyNotFound('Ausgewählter Autor nicht gefunden.');
             return;
         }
         editorMode = mode;
@@ -132,7 +133,7 @@ async function createAuthor(firstName, lastName) {
         renderAuthorsTable(rootElement, cachedAuthors);
         removeEditor();
     } catch (error) {
-        alert(getErrorMessage(error, 'Failed to create author'));
+        notify(getErrorMessage(error, 'Failed to create author'));
         console.error('Error creating author:', error);
     }
 }
@@ -145,14 +146,14 @@ async function updateAuthor(firstName, lastName) {
         renderAuthorsTable(rootElement, cachedAuthors);
         removeEditor();
     } catch (error) {
-        alert(getErrorMessage(error, 'Failed to update author'));
+        notify(getErrorMessage(error, 'Failed to update author'));
         console.error('Error updating author:', error);
     }
 }
 
 export async function deleteSelectedAuthor() {
     if (!selectedAuthorId) {
-        alert('Kein Autor ausgewählt.');
+        notifySelectionRequired('Kein Autor ausgewählt.');
         return;
     }
 
@@ -165,7 +166,7 @@ export async function deleteSelectedAuthor() {
             await deleteJson(`/api/authors/${selectedAuthorId}`);
         } catch (error) {
             if (error.status === 409) {
-                alert(getErrorMessage(error));
+                notify(getErrorMessage(error));
                 return;
             }
             throw error;
@@ -177,7 +178,7 @@ export async function deleteSelectedAuthor() {
         removeEditor();
     } catch (error) {
         console.error('Error deleting author:', error);
-        alert('Fehler beim Löschen des Autors.');
+        notify('Fehler beim Löschen des Autors.');
     }
 }
 
@@ -217,23 +218,23 @@ async function handleConfirm(event) {
     const firstName = firstNameInput ? firstNameInput.value.trim() : '';
     const lastName = lastNameInput.value.trim();
     if (!lastName) {
-        alert('Name ist erforderlich.');
+        notify('Name ist erforderlich.');
         return;
     }
 
     if (editorMode === 'edit') {
         if (!selectedAuthorId) {
-            alert('Bitte zuerst einen Autor auswählen.');
+            notifySelectionRequired('Bitte zuerst einen Autor auswählen.');
             return;
         }
         if (isDuplicateAuthor(firstName, lastName, selectedAuthorId)) {
-            alert('Autor existiert bereits.');
+            notify('Autor existiert bereits.');
             return;
         }
         await updateAuthor(firstName, lastName);
     } else {
         if (isDuplicateAuthor(firstName, lastName)) {
-            alert('Autor existiert bereits.');
+            notify('Autor existiert bereits.');
             return;
         }
         await createAuthor(firstName, lastName);
