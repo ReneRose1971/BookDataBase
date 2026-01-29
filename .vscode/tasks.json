@@ -33,24 +33,44 @@
 			}
 		},
 		{
-	"label": "Merge work -> main (lokal, no editor)",
-	"type": "shell",
-	"command": "powershell",
-	"args": [
-		"-NoProfile",
-		"-Command",
-		"git fetch origin; git checkout main; git pull origin main; git merge work --no-edit"
-	],
-	"options": {
-		"cwd": "${workspaceFolder}"
-	},
-	"problemMatcher": [],
-	"presentation": {
-		"reveal": "always",
-		"panel": "dedicated",
-		"focus": true,
-		"clear": false
-	}
-}
+			"label": "Merge work -> main (no editor, inkl. Push)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"git fetch origin; git checkout main; git pull origin main; git merge work --no-edit; git push origin main"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": true,
+				"clear": false
+			}
+		},
+		{
+			"label": "Commit & Push (Fixes)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"git status --porcelain | Select-Object -First 1 | ForEach-Object { git add -A; git commit -m \"Fixes\"; git push }"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": true,
+				"clear": false
+			}
+		}
 	]
 }
