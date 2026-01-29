@@ -23,6 +23,7 @@ export async function mount(ctx) {
     disposables.add(enableSingleRowSelection(tbody, (id) => {
         selectedTagId = parseInt(id, 10);
     }));
+    disposables.add(addEvent(tbody, 'dblclick', handleTagRowDoubleClick));
 }
 
 export function unmount() {
@@ -228,4 +229,13 @@ async function updateTag(name) {
     } catch (e) {
         alert(getErrorMessage(e, 'Fehler beim Aktualisieren des Tags.'));
     }
+}
+
+function handleTagRowDoubleClick(event) {
+    if (event.target.closest('button, a, [data-tag-action]')) return;
+    const tbody = rootElement?.querySelector('tbody');
+    const row = event.target.closest('tr[data-id]');
+    if (!tbody || !row || !tbody.contains(row)) return;
+    selectedTagId = parseInt(row.dataset.id, 10);
+    handleTagActions('edit');
 }
