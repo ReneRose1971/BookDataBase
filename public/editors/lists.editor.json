@@ -1,0 +1,17 @@
+{
+  "shell": "/views/editors/shells/lists.shell.html",
+  "slots": {
+    "main": [
+      {
+        "name": "list-fields",
+        "html": "/views/editors/parts/list-fields.part.html"
+      }
+    ],
+    "footer": [
+      {
+        "name": "list-actions",
+        "html": "/views/editors/parts/list-actions.part.html"
+      }
+    ]
+  }
+}

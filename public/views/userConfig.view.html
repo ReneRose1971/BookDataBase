@@ -5,19 +5,40 @@
             <div class="form-group">
                 <label for="openai-api-key">OpenAI API Key</label>
                 <input type="password" id="openai-api-key" name="openai-api-key" placeholder="API Key eingeben">
-                <span id="openai-api-key-status" class="api-key-status"></span>
+                <span id="openai-status" class="api-key-status"></span>
             </div>
             <div class="form-group">
-                <label for="openlibrary-api-key">Open Library API Key</label>
-                <input type="password" id="openlibrary-api-key" name="openlibrary-api-key" placeholder="API Key eingeben">
-                <span id="openlibrary-api-key-status" class="api-key-status"></span>
+                <label for="googlebooks-api-key">Google Books API Key</label>
+                <input type="password" id="googlebooks-api-key" name="googlebooks-api-key" placeholder="API Key eingeben">
+                <span id="googlebooks-status" class="api-key-status"></span>
             </div>
         </form>
         <div class="button-group">
             <button class="func-button" data-api-action="cancel">Abbrechen</button>
             <button class="func-button" data-api-action="save">Speichern</button>
             <button class="func-button" data-api-action="remove-openai">OpenAI Key entfernen</button>
-            <button class="func-button" data-api-action="remove-openlibrary">Open Library Key entfernen</button>
+            <button class="func-button" data-api-action="remove-googlebooks">Google Books Key entfernen</button>
         </div>
+    </div>
+</div>
+<div class="view-wrapper view-wrapper-prompts">
+    <div class="section-label section-label-headline">OpenAI Prompt – Buchzusammenfassung</div>
+    <div class="view-content-container">
+        <div class="form-group">
+            <label for="book-summary-system-prompt">System Prompt</label>
+            <textarea id="book-summary-system-prompt" name="book-summary-system-prompt" rows="8" class="editor-input-full"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="book-summary-user-prompt">User Prompt Template</label>
+            <textarea id="book-summary-user-prompt" name="book-summary-user-prompt" rows="8" class="editor-input-full"></textarea>
+        </div>
+        <div class="prompt-help">
+            <p>Verfügbare Platzhalter: <code>{{title}}</code>, <code>{{authors}}</code>, <code>{{lists}}</code>, <code>{{tags}}</code></p>
+        </div>
+        <div class="button-group">
+            <button class="func-button" data-prompt-action="reset">Zurücksetzen</button>
+            <button class="func-button" data-prompt-action="save">Speichern</button>
+        </div>
+        <div class="prompt-status" data-prompt-status></div>
     </div>
 </div>

@@ -11,6 +11,46 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "test"
-		}
+		},
+		{
+			"label": "Update lokal und Start (work)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"git checkout work; git pull; npm start"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": true,
+				"clear": false
+			}
+		},
+		{
+	"label": "Merge work -> main (lokal, no editor)",
+	"type": "shell",
+	"command": "powershell",
+	"args": [
+		"-NoProfile",
+		"-Command",
+		"git fetch origin; git checkout main; git pull origin main; git merge work --no-edit"
+	],
+	"options": {
+		"cwd": "${workspaceFolder}"
+	},
+	"problemMatcher": [],
+	"presentation": {
+		"reveal": "always",
+		"panel": "dedicated",
+		"focus": true,
+		"clear": false
+	}
+}
 	]
 }

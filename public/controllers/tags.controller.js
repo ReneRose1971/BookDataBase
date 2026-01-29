@@ -1,54 +1,58 @@
-import { loadFragment } from '../view-loader.js';
-import { enableSingleRowSelection, fetchJson, confirmDanger } from '../ui-helpers.js';
+import { enableSingleRowSelection } from '../ui-helpers.js';
+import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
+import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
+import { getJson, postJson, putJson, deleteJson, getErrorMessage } from '../api/api-client.js';
 
 let selectedTagId = null;
 let editorMode = 'create';
 let cachedTags = [];
+let rootElement = null;
+let disposables = null;
 
 export async function mount(ctx) {
-    const rootElement = ctx.root || ctx;
+    rootElement = ctx.root || ctx;
+    disposables = createDisposables();
+
     cachedTags = await fetchTags();
     renderTagsTable(rootElement, cachedTags);
-    removeEditor(rootElement);
+    removeEditor();
 
-    rootElement.addEventListener('click', handleRootActions);
+    disposables.add(addEvent(rootElement, 'click', handleRootActions));
 
-    enableSingleRowSelection(rootElement.querySelector('tbody'), (id) => {
-        console.log('Row selected with ID:', id); // Debugging line
+    const tbody = rootElement.querySelector('tbody');
+    disposables.add(enableSingleRowSelection(tbody, (id) => {
         selectedTagId = parseInt(id, 10);
-    });
+    }));
+    disposables.add(addEvent(tbody, 'dblclick', handleTagRowDoubleClick));
 }
 
-export function unmount(rootElement) {
-    rootElement.removeEventListener('click', handleRootActions);
+export function unmount() {
+    closeEditor();
+    if (disposables) {
+        disposables.disposeAll();
+    }
+    rootElement = null;
+    selectedTagId = null;
 }
 
-// Ensure tag_id is stored as a number
-// Debugging: Log fetched tags
 async function fetchTags() {
     try {
-        const res = await fetch('/api/tags');
-        const tags = await res.json();
-        const normalizedTags = tags.map(tag => ({
+        const tags = await getJson('/api/tags');
+        return tags.map(tag => ({
             ...tag,
-            tag_id: parseInt(tag.tag_id, 10) // Convert tag_id to number
+            tag_id: parseInt(tag.tag_id, 10)
         }));
-        console.log('Normalized tags:', normalizedTags); // Debugging line
-        return normalizedTags;
     } catch (e) {
         console.error(e);
         return [];
     }
 }
 
-// Ensure data-tag-id is used consistently
-// Debugging: Verify data-id generation
 function renderTagsTable(rootElement, tags) {
     const tbody = rootElement.querySelector('tbody');
     if (!tbody) return;
     selectedTagId = null;
     tbody.innerHTML = tags.map(tag => {
-        console.log('Rendering tag:', tag); // Debugging line
         return `
             <tr data-id="${String(tag.tag_id)}">
                 <td>${tag.name}</td>
@@ -59,23 +63,15 @@ function renderTagsTable(rootElement, tags) {
 }
 
 function handleRootActions(event) {
-    const actionButton = event.target.closest('[data-tag-action], [data-tag-editor-action]');
+    const actionButton = event.target.closest('[data-tag-action]');
     if (!actionButton) return;
 
-    const rootElement = event.currentTarget;
-
     if (actionButton.dataset.tagAction) {
-        handleTagActions(actionButton.dataset.tagAction, rootElement);
-    } else if (actionButton.dataset.tagEditorAction) {
-        handleEditorActions(actionButton.dataset.tagEditorAction, rootElement);
+        handleTagActions(actionButton.dataset.tagAction);
     }
 }
 
-// Ensure selectedTagId is properly updated and validated before actions
-// Debugging: Log selectedTagId and type during processing
-function handleTagActions(action, rootElement) {
-    console.log('Selected Tag ID:', selectedTagId, 'Type:', typeof selectedTagId); // Debugging line
-
+function handleTagActions(action) {
     if (!selectedTagId && (action === 'edit' || action === 'delete')) {
         alert('Bitte Tag auswählen.');
         return;
@@ -83,39 +79,18 @@ function handleTagActions(action, rootElement) {
 
     switch (action) {
         case 'create':
-            setEditorMode(rootElement, 'create');
+            setEditorMode('create');
             break;
         case 'edit':
-            setEditorMode(rootElement, 'edit');
+            setEditorMode('edit');
             break;
         case 'delete':
-            deleteSelectedTag(rootElement);
+            deleteSelectedTag();
             break;
     }
 }
 
-function handleEditorActions(action, rootElement) {
-    switch (action) {
-        case 'confirm':
-            handleConfirm(rootElement);
-            break;
-        case 'cancel':
-            handleCancel(rootElement);
-            break;
-    }
-}
-
-function handleTableClick(event) {
-    const row = event.target.closest('tr');
-    if (row && row.dataset.id) { // Updated to use data-id
-        selectedTagId = parseInt(row.dataset.id, 10);
-        const rows = event.currentTarget.querySelectorAll('tr');
-        rows.forEach(r => r.classList.remove('selected'));
-        row.classList.add('selected');
-    }
-}
-
-async function setEditorMode(rootElement, mode) {
+async function setEditorMode(mode) {
     if (mode === 'edit') {
         if (!selectedTagId) {
             alert('Bitte Tag auswählen.');
@@ -127,36 +102,43 @@ async function setEditorMode(rootElement, mode) {
             return;
         }
         editorMode = mode;
-        await renderEditor(rootElement, selectedTag.name);
+        await renderEditor(selectedTag.name);
     } else {
         editorMode = mode;
-        await renderEditor(rootElement, '');
+        await renderEditor('');
     }
 }
 
-function removeEditor(rootElement) {
-    clearEditor(rootElement);
+function removeEditor() {
+    closeEditor();
     editorMode = 'create';
 }
 
-function clearEditor(rootElement) {
-    const slot = rootElement.querySelector('.tag-editor-slot');
-    if (slot) {
-        slot.innerHTML = '';
-    }
+function isDuplicateTagName(name, excludeTagId = null) {
+    const normalized = name.trim().toLowerCase();
+    return cachedTags.some((tag) => {
+        if (excludeTagId !== null && tag.tag_id === excludeTagId) {
+            return false;
+        }
+        return tag.name.trim().toLowerCase() === normalized;
+    });
 }
 
-async function renderEditor(rootElement, value) {
+async function renderEditor(value) {
     const slot = rootElement.querySelector('.tag-editor-slot');
     if (!slot) return;
-    clearEditor(rootElement);
-    try {
-        await loadFragment(slot, '/views/tag-name-editor.view.html');
-    } catch (error) {
-        console.error(error);
-        alert('Tag-Editor konnte nicht geladen werden.');
-        return;
-    }
+
+    await openEditor({
+        host: slot,
+        manifestPath: '/editors/tags.editor.json',
+        mode: editorMode,
+        dataContext: { tagId: selectedTagId },
+        actions: {
+            confirm: (event) => handleConfirm(event),
+            cancel: (event) => handleCancel(event)
+        }
+    });
+
     const input = rootElement.querySelector('#tagNameEditorInput');
     if (input) {
         input.value = value;
@@ -164,14 +146,12 @@ async function renderEditor(rootElement, value) {
     }
 }
 
-// Debugging: Log database access details
-async function deleteSelectedTag(rootElement) {
+async function deleteSelectedTag() {
     if (!selectedTagId) {
         alert('Bitte Tag auswählen.');
         return;
     }
     const selectedTag = cachedTags.find(tag => tag.tag_id === selectedTagId);
-    console.log('Selected Tag for Deletion:', selectedTag); // Debugging line
 
     if (!selectedTag) {
         alert('Ausgewähltes Tag nicht gefunden.');
@@ -184,23 +164,19 @@ async function deleteSelectedTag(rootElement) {
         return;
     }
     try {
-        const res = await fetch(`/api/tags/${selectedTagId}`, { method: 'DELETE' });
-        console.log('Database Response:', res); // Debugging line
-        if (res.ok) {
-            selectedTagId = null;
-            cachedTags = await fetchTags();
-            renderTagsTable(rootElement, cachedTags);
-            removeEditor(rootElement);
-        } else {
-            const err = await res.json();
-            alert(err.error);
-        }
+        await deleteJson(`/api/tags/${selectedTagId}`);
+        selectedTagId = null;
+        cachedTags = await fetchTags();
+        renderTagsTable(rootElement, cachedTags);
+        removeEditor();
     } catch (e) {
+        alert(getErrorMessage(e));
         console.error(e);
     }
 }
 
-async function handleConfirm(rootElement) {
+async function handleConfirm(event) {
+    event.preventDefault();
     const input = rootElement.querySelector('#tagNameEditorInput');
     if (!input) return;
     const name = input.value.trim();
@@ -214,74 +190,52 @@ async function handleConfirm(rootElement) {
             alert('Bitte Tag auswählen.');
             return;
         }
-        if (isDuplicateName(name, selectedTagId)) {
-            alert('Ein Tag mit diesem Namen existiert bereits.');
+        if (isDuplicateTagName(name, selectedTagId)) {
+            alert('Tag existiert bereits.');
             return;
         }
-        await updateTag(rootElement, name);
+        await updateTag(name);
     } else {
-        if (isDuplicateName(name)) {
-            alert('Ein Tag mit diesem Namen existiert bereits.');
+        if (isDuplicateTagName(name)) {
+            alert('Tag existiert bereits.');
             return;
         }
-        await createTag(rootElement, name);
+        await createTag(name);
     }
 }
 
-function handleCancel(rootElement) {
-    removeEditor(rootElement);
+function handleCancel(event) {
+    event.preventDefault();
+    removeEditor();
 }
 
-async function createTag(rootElement, name) {
+async function createTag(name) {
     try {
-        const res = await fetch('/api/tags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (res.ok) {
-            cachedTags = await fetchTags();
-            renderTagsTable(rootElement, cachedTags);
-            removeEditor(rootElement);
-        } else {
-            const err = await res.json();
-            alert(err.error);
-        }
+        await postJson('/api/tags', { name });
+        cachedTags = await fetchTags();
+        renderTagsTable(rootElement, cachedTags);
+        removeEditor();
     } catch (e) {
-        console.error(e);
+        alert(getErrorMessage(e, 'Fehler beim Erstellen des Tags.'));
     }
 }
 
-async function updateTag(rootElement, name) {
+async function updateTag(name) {
     try {
-        const res = await fetch(`/api/tags/${selectedTagId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (res.ok) {
-            cachedTags = await fetchTags();
-            renderTagsTable(rootElement, cachedTags);
-            removeEditor(rootElement);
-        } else {
-            const err = await res.json();
-            alert(err.error);
-        }
+        await putJson(`/api/tags/${selectedTagId}`, { name });
+        cachedTags = await fetchTags();
+        renderTagsTable(rootElement, cachedTags);
+        removeEditor();
     } catch (e) {
-        console.error(e);
+        alert(getErrorMessage(e, 'Fehler beim Aktualisieren des Tags.'));
     }
 }
 
-function isDuplicateName(name, excludeTagId = null) {
-    const normalized = name.trim().toLowerCase();
-    return cachedTags.some(tag => {
-        if (excludeTagId && tag.tag_id === excludeTagId) {
-            return false;
-        }
-        return tag.name.trim().toLowerCase() === normalized;
-    });
+function handleTagRowDoubleClick(event) {
+    if (event.target.closest('button, a, [data-tag-action]')) return;
+    const tbody = rootElement?.querySelector('tbody');
+    const row = event.target.closest('tr[data-id]');
+    if (!tbody || !row || !tbody.contains(row)) return;
+    selectedTagId = parseInt(row.dataset.id, 10);
+    handleTagActions('edit');
 }
-
-// Bound events:
-// - click on root (delegation)
-// - row selection via enableSingleRowSelection

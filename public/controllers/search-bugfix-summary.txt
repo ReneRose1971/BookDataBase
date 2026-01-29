@@ -1,0 +1,16 @@
+Ursache:
+- ReferenceError: 'items is not defined' trat auf, weil in handlePollExternalSearch und handleExternalSearch die Variable 'items' verwendet wurde, ohne im Scope robust definiert zu sein.
+- Besonders betroffen: setLog(), setStatus(), updateItems(), updateResultsView() und alle nachfolgenden Operationen, die items benötigen.
+
+Fix:
+- Nach jedem API-Call (getExternalSearchStatus/startExternalSearch) wird jetzt direkt definiert:
+  const items = Array.isArray(result.items) ? result.items : [];
+- Alle nachfolgenden Verwendungen nutzen diese Variable.
+- Keine Mischung mehr aus result.items?.length und items.length.
+
+Testfälle (Validierung):
+- Externe Suche mit „Zukunfts“: Kein ReferenceError mehr, Statusanzeige und Trefferliste funktionieren, Trefferzahl steigt während Polling.
+- Sortierung, Pagination und Filter funktionieren weiterhin korrekt.
+- Abbrechen der Suche stoppt das Polling ohne Fehler.
+
+Datei geändert: public/controllers/search.controller.js

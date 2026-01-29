@@ -1,24 +1,31 @@
 export function enableSingleRowSelection(tbody, onSelect) {
-    tbody.addEventListener('click', (event) => {
+    if (!tbody) {
+        return () => {};
+    }
+    const selectedClass = 'selected';
+    const handleClick = (event) => {
         const row = event.target.closest('tr');
-        console.log('Clicked row:', row); // Debugging line
-        if (!row) return;
+        if (!row || !tbody.contains(row)) return;
+        const id = row.dataset.id;
+        if (!id) return;
 
-        const selectedClass = 'selected';
         const previouslySelected = tbody.querySelector(`.${selectedClass}`);
         if (previouslySelected) {
             previouslySelected.classList.remove(selectedClass);
         }
 
         row.classList.add(selectedClass);
-        const id = row.dataset.id;
-        console.log('Row dataset ID:', id); // Debugging line
-        if (id) onSelect(id);
-    });
+        if (typeof onSelect === 'function') {
+            onSelect(id, row);
+        }
+    };
+
+    tbody.addEventListener('click', handleClick);
+    return () => tbody.removeEventListener('click', handleClick);
 }
 
 export async function fetchJson(url, options = {}) {
-    const response = await fetch(url, options);
+    const response = await fetch(url, { ...options, cache: 'no-store' });
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }

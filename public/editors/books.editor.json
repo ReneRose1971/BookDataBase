@@ -1,0 +1,41 @@
+{
+  "shell": "/views/editors/shells/books.shell.html",
+  "slots": {
+    "header": [
+      {
+        "name": "book-header",
+        "html": "/views/editors/parts/book-header.part.html"
+      }
+    ],
+    "summary": [
+      {
+        "name": "book-summary",
+        "html": "/views/editors/parts/book-summary.part.html"
+      }
+    ],
+    "authors": [
+      {
+        "name": "book-authors",
+        "html": "/views/editors/parts/join-child-table.part.html"
+      }
+    ],
+    "lists": [
+      {
+        "name": "book-lists",
+        "html": "/views/editors/parts/join-child-table.part.html"
+      }
+    ],
+    "tags": [
+      {
+        "name": "book-tags",
+        "html": "/views/editors/parts/join-child-table.part.html"
+      }
+    ],
+    "footer": [
+      {
+        "name": "book-actions",
+        "html": "/views/editors/parts/book-actions.part.html"
+      }
+    ]
+  }
+}

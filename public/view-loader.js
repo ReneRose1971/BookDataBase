@@ -1,4 +1,5 @@
 let currentController = null;
+let currentCtx = null;
 
 export async function loadFragment(target, fragmentPath) {
     if (!target) {
@@ -44,14 +45,70 @@ export async function loadFragments(rootElement) {
     }
 }
 
+export async function loadViewInto({ targetEl, viewPath, controllerPath, title, context = {} }) {
+    if (!targetEl) {
+        throw new Error('Target element missing for view loading.');
+    }
+    if (!viewPath) {
+        throw new Error('View path missing for view loading.');
+    }
+
+    const response = await fetch(viewPath);
+    if (!response.ok) {
+        throw new Error(`Failed to load view: ${viewPath}`);
+    }
+    const html = await response.text();
+    targetEl.innerHTML = html;
+
+    await loadFragments(targetEl);
+
+    const viewName = viewPath.split('/').pop().split('.').shift();
+    const ctx = {
+        root: targetEl,
+        viewName,
+        title,
+        ...context
+    };
+
+    let controller = null;
+    let mountResult = null;
+
+    if (controllerPath) {
+        controller = await import(controllerPath);
+        if (controller && typeof controller.mount === 'function') {
+            mountResult = await controller.mount(ctx);
+        }
+    }
+
+    const dispose = () => {
+        if (mountResult && typeof mountResult.dispose === 'function') {
+            mountResult.dispose();
+        }
+        if (controller && typeof controller.unmount === 'function') {
+            controller.unmount(ctx.root);
+        }
+        if (targetEl) {
+            targetEl.innerHTML = '';
+        }
+    };
+
+    return {
+        rootEl: targetEl,
+        controller,
+        dispose
+    };
+}
+
 // Update the section headline dynamically based on the title field
 export async function loadViewAndController(viewPath, controllerPath, title) {
     try {
         // Unmount the current controller if it exists
         if (currentController && typeof currentController.unmount === 'function') {
-            currentController.unmount(document.querySelector('#content'));
+            const root = currentCtx?.root || document.querySelector('#content');
+            currentController.unmount(root);
         }
         currentController = null;
+        currentCtx = null;
 
         // Load the view
         const response = await fetch(viewPath);
@@ -83,17 +140,11 @@ export async function loadViewAndController(viewPath, controllerPath, title) {
 
         // Load and mount the controller
         const module = await import(controllerPath);
-        try {
-            if (module.mount.length >= 1) {
-                module.mount(ctx.root); // Pass only the root element
-            } else {
-                module.mount(ctx.root);
-            }
-        } catch (error) {
-            console.warn('Controller mount failed with context, falling back to root:', error);
-            module.mount(ctx.root);
+        if (typeof module.mount === 'function') {
+            module.mount(ctx);
         }
         currentController = module;
+        currentCtx = ctx;
     } catch (error) {
         console.error('Error loading view or controller:', error);
         const contentElement = document.querySelector('#content');

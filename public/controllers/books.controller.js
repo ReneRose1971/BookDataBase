@@ -1,52 +1,72 @@
-import { loadFragment } from '../view-loader.js';
-
-// Book editor logic is consolidated in this controller (legacy create/edit controllers and helper removed).
+import { enableSingleRowSelection } from '../ui-helpers.js';
+import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
+import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
+import { createJoinChildTableController } from '../editor-runtime/join-child-table.js';
+import { getJson, postJson, putJson, deleteJson, getErrorMessage, getErrorPayload } from '../api/api-client.js';
 
 let selectedBookId = null;
 let editorMode = 'create';
-
-const abortController = new AbortController();
+let rootElement = null;
+let disposables = null;
+let editorDisposables = null;
+let cachedLists = [];
 
 export async function mount(ctx) {
-    const rootElement = ctx.root || ctx;
+    rootElement = ctx.root || ctx;
+    disposables = createDisposables();
+
     const filterSelect = rootElement.querySelector('#booklistFilter');
 
-    // Load lists for filter
-    const listsRes = await fetch('/api/book-lists');
-    const listsData = await listsRes.json();
-    const lists = listsData.items || [];
+    cachedLists = await fetchLists();
 
     if (filterSelect) {
-        filterSelect.innerHTML = lists.map(l => `<option value="${l.book_list_id}" ${l.name === 'Gelesene Bücher' ? 'selected' : ''}>${l.name}</option>`).join('');
-        filterSelect.addEventListener('change', async () => {
+        filterSelect.innerHTML = cachedLists.map(l => `<option value="${l.book_list_id}" ${l.name === 'Gelesene Bücher' ? 'selected' : ''}>${l.name}</option>`).join('');
+        disposables.add(addEvent(filterSelect, 'change', async () => {
             const books = await fetchBooks(filterSelect.value);
             renderBooksTable(rootElement, books);
-        }, { signal: abortController.signal });
+        }));
     }
 
-    // Initial load with filter if available
     const initialListId = filterSelect ? filterSelect.value : null;
     const books = await fetchBooks(initialListId);
     renderBooksTable(rootElement, books);
 
-    rootElement.addEventListener('click', handleTableClick);
-    rootElement.addEventListener('click', handleBookActions);
+    disposables.add(addEvent(rootElement, 'click', handleBookActions));
 
-    removeEditor(rootElement);
+    const tbody = rootElement.querySelector('tbody');
+    disposables.add(enableSingleRowSelection(tbody, (id) => {
+        selectedBookId = Number(id);
+    }));
+    disposables.add(addEvent(tbody, 'dblclick', handleBookRowDoubleClick));
+
+    removeEditor();
 }
 
-export function unmount(rootElement) {
-    abortController.abort();
-    rootElement.removeEventListener('click', handleTableClick);
-    rootElement.removeEventListener('click', handleBookActions);
+export function unmount() {
+    closeEditor();
+    clearEditorDisposables();
+    if (disposables) {
+        disposables.disposeAll();
+    }
+    rootElement = null;
+    selectedBookId = null;
 }
 
 async function fetchBooks(listId = null) {
     try {
         const url = listId ? `/api/books?listId=${listId}` : '/api/books';
-        const res = await fetch(url);
-        const data = await res.json();
+        const data = await getJson(url);
         return data.items || [];
+    } catch (e) {
+        console.error(e);
+        return [];
+    }
+}
+
+async function fetchLists() {
+    try {
+        const listsData = await getJson('/api/book-lists');
+        return listsData.items || [];
     } catch (e) {
         console.error(e);
         return [];
@@ -58,265 +78,518 @@ function renderBooksTable(rootElement, books) {
     if (!tbody) return;
     selectedBookId = null;
     tbody.innerHTML = books.map(book => `
-        <tr data-book-id="${book.book_id}" class="${selectedBookId === book.book_id ? 'selected' : ''}" style="cursor: pointer;">
+        <tr data-id="${book.book_id}" style="cursor: pointer;">
             <td>${book.title}</td>
             <td>${book.authors || ''}</td>
         </tr>
     `).join('');
 }
 
-function handleTableClick(event) {
-    const row = event.target.closest('tr');
-    if (row && row.dataset.bookId) {
-        selectedBookId = parseInt(row.dataset.bookId, 10);
-        event.currentTarget.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
-        row.classList.add('selected');
-    }
-}
-
-async function deleteSelectedBook(rootElement) {
+async function deleteSelectedBook() {
     if (!selectedBookId) return alert('Bitte ein Buch auswählen.');
     if (!confirm('Buch wirklich löschen?')) return;
 
     try {
-        const res = await fetch(`/api/books/${selectedBookId}`, { method: 'DELETE' });
-        if (res.ok) {
-            selectedBookId = null;
-            const books = await fetchBooks();
-            renderBooksTable(rootElement, books);
-            removeEditor(rootElement);
-        } else {
-            const errorText = await res.text();
-            alert(`Fehler beim Löschen (${res.status}): ${errorText}`);
-        }
+        await deleteJson(`/api/books/${selectedBookId}`);
+        selectedBookId = null;
+        const books = await fetchBooks();
+        renderBooksTable(rootElement, books);
+        removeEditor();
     } catch (e) {
-        alert(`Ein Fehler ist aufgetreten: ${e.message}`);
+        const payload = getErrorPayload(e);
+        const errorText = payload === undefined || payload === null
+            ? getErrorMessage(e)
+            : (typeof payload === 'string' ? payload : JSON.stringify(payload));
+        alert(`Fehler beim Löschen (${e.status ?? 'unbekannt'}): ${errorText}`);
         console.error(e);
     }
 }
 
-function removeEditor(rootElement) {
-    const slot = rootElement.querySelector('.book-editor-slot');
-    if (slot) {
-        slot.innerHTML = '';
+function clearEditorDisposables() {
+    if (editorDisposables) {
+        editorDisposables.disposeAll();
+        editorDisposables = null;
     }
+}
+
+function removeEditor() {
+    closeEditor();
+    clearEditorDisposables();
     editorMode = 'create';
 }
 
-async function renderBookEditor(rootElement, mode, bookId = null) {
-    try {
-        editorMode = mode;
-        const slot = rootElement.querySelector('.book-editor-slot');
-        if (!slot) return;
-        removeEditor(rootElement);
+async function renderBookEditor(mode, bookId = null) {
+    editorMode = mode;
+    const slot = rootElement.querySelector('.book-editor-slot');
+    if (!slot) return;
 
-        const viewPath = '/views/book-editor.view.html'; // Unified editor view
-        await loadFragment(slot, viewPath);
+    closeEditor();
+    clearEditorDisposables();
 
-        const editorRoot = slot.querySelector('.book-editor');
-        if (!editorRoot) return;
+    let assignedAuthors = [];
+    let assignedLists = [];
+    let assignedTags = [];
 
-        const titleElement = editorRoot.querySelector('#bookEditorTitle');
-        if (titleElement) {
-            titleElement.textContent = mode === 'edit' ? 'Buch bearbeiten' : 'Neues Buch';
+    let allAuthors = [];
+    let allLists = [];
+    let allTags = [];
+
+    let authorsById = new Map();
+    let listsById = new Map();
+    let tagsById = new Map();
+
+    let bookData = null;
+    const inlinePickerManager = {
+        activeHandle: null,
+        setActive(handle) {
+            if (this.activeHandle && this.activeHandle !== handle) {
+                this.activeHandle.dispose();
+            }
+            this.activeHandle = handle;
+        },
+        closeActive(exceptHandle = null) {
+            if (this.activeHandle && this.activeHandle !== exceptHandle) {
+                this.activeHandle.dispose();
+                this.activeHandle = null;
+            }
+        },
+        clearActive(handle) {
+            if (!handle || this.activeHandle === handle) {
+                this.activeHandle = null;
+            }
+        }
+    };
+
+    const getAuthorId = (author) => author.author_id ?? author.id ?? author.authorId ?? author.AuthorId;
+    const getListId = (list) => list.book_list_id ?? list.id ?? list.bookListId ?? list.BookListId;
+    const getTagId = (tag) => tag.tag_id ?? tag.id ?? tag.tagId ?? tag.TagId;
+
+    const handleCancel = (event) => {
+        event.preventDefault();
+        removeEditor();
+    };
+
+    const handleConfirm = async (event) => {
+        event.preventDefault();
+        const title = titleInput.value.trim();
+        if (!title || title.length < 2) return alert('Bitte einen gültigen Titel eingeben.');
+        if (assignedAuthors.length === 0) return alert('Ein Buch muss mindestens einen Autor haben.');
+        if (assignedLists.length === 0) return alert('Bitte wählen Sie mindestens eine Liste aus.');
+
+        const authorIds = assignedAuthors.map(a => getAuthorId(a));
+        const listIds = assignedLists.map(l => getListId(l));
+        const tagIds = assignedTags.map(t => getTagId(t)).filter(id => id !== undefined && id !== null);
+        const summary = summaryInput ? summaryInput.value.trim() : null;
+        const summaryPayload = summary ? summary : null;
+
+        let checkData = null;
+        try {
+            checkData = await getJson(`/api/books/check-duplicate?title=${encodeURIComponent(title)}&authorIds=${JSON.stringify(authorIds)}`);
+        } catch (error) {
+            console.error(error);
+            checkData = { duplicate: false };
         }
 
-        const titleInput = editorRoot.querySelector('#bookTitle');
-        const authorSelect = editorRoot.querySelector('#authorSelect');
-        const addAuthorBtn = editorRoot.querySelector('#addAuthorBtn');
-        const removeAuthorBtn = editorRoot.querySelector('#removeAuthorBtn');
-        const assignedTableBody = editorRoot.querySelector('#assignedAuthorsTable tbody');
-        const listsGrid = editorRoot.querySelector('.lists-checkbox-grid');
-        const confirmBtn = editorRoot.querySelector('[data-book-editor-action="confirm"]');
-        const cancelBtn = editorRoot.querySelector('[data-book-editor-action="cancel"]');
-
-        let assignedAuthors = [];
-        let selectedInDialogId = null;
-        let authorsById = new Map();
-        const removedAuthorIds = new Set();
-
-        // Load baseline data
-        const [authorsRes, listsRes] = await Promise.all([
-            fetch('/api/authors'),
-            fetch('/api/book-lists')
-        ]);
-        const allAuthors = await authorsRes.json();
-        const listsData = await listsRes.json();
-        const bookLists = listsData.items || [];
-        const getAuthorId = (author) => author.author_id ?? author.id ?? author.authorId ?? author.AuthorId;
-        authorsById = new Map(
-            allAuthors
-                .map((author) => [getAuthorId(author), author])
-                .filter(([id]) => id !== undefined && id !== null)
-                .map(([id, author]) => [String(id), author])
-        );
-
-        authorSelect.innerHTML = [
-            '<option value="">Bitte auswählen</option>',
-            ...allAuthors.map(a => {
-                const authorId = getAuthorId(a);
-                return `<option value="${authorId}">${a.first_name} ${a.last_name}</option>`;
-            })
-        ].join('');
-        listsGrid.innerHTML = bookLists.map(list => `
-            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 0;">
-                <input type="checkbox" name="book_list" value="${list.book_list_id}">
-                ${list.name}
-            </label>
-        `).join('');
-
-        const updateRemoveBtnState = () => {
-            removeAuthorBtn.disabled = selectedInDialogId === null;
-        };
-
-        const removeAssignedAuthor = async (authorId) => {
-            if (bookId) {
-                removedAuthorIds.add(authorId);
-            }
-            assignedAuthors = assignedAuthors.filter(a => String(getAuthorId(a)) !== String(authorId));
-            selectedInDialogId = null;
-            renderDialogAuthors();
-            updateRemoveBtnState();
-        };
-
-        const renderDialogAuthors = () => {
-            assignedTableBody.innerHTML = assignedAuthors.map(a => `
-                <tr data-author-id="${getAuthorId(a)}" class="${selectedInDialogId === String(getAuthorId(a)) ? 'selected' : ''}">
-                    <td>${a.first_name}</td>
-                    <td>${a.last_name}</td>
-                </tr>
-            `).join('');
-
-            assignedTableBody.querySelectorAll('tr').forEach(row => {
-                row.onclick = () => {
-                    const id = row.dataset.authorId;
-                    selectedInDialogId = (selectedInDialogId === id) ? null : id;
-                    renderDialogAuthors();
-                    updateRemoveBtnState();
-                };
-            });
-        };
-
-        // If editing, load book data
-        if (bookId) {
-            const bookRes = await fetch(`/api/books/${bookId}`);
-            const bookData = await bookRes.json();
-            titleInput.value = bookData.title;
-            assignedAuthors = bookData.authors;
-            renderDialogAuthors();
-            updateRemoveBtnState();
-            
-            bookData.listIds.forEach(id => {
-                const cb = editorRoot.querySelector(`input[name="book_list"][value="${id}"]`);
-                if (cb) cb.checked = true;
-            });
+        if (checkData.duplicate && (!bookId || checkData.book_id !== bookId)) {
+            alert('Ein Buch mit diesem Titel und diesen Autoren existiert bereits.');
+            return;
         }
 
-        addAuthorBtn.addEventListener('click', () => {
-            const selectedId = String(authorSelect.value).trim();
-            if (selectedId === '') {
-                alert('Bitte einen Autor auswählen.');
-                return;
+        const method = bookId ? 'PUT' : 'POST';
+        const url = bookId ? `/api/books/${bookId}` : '/api/books';
+
+        try {
+            if (method === 'PUT') {
+                await putJson(url, { title, authorIds, listIds, tagIds, summary: summaryPayload });
+            } else {
+                await postJson(url, { title, authorIds, listIds, tagIds, summary: summaryPayload });
             }
-            const author = authorsById.get(selectedId);
+            const books = await fetchBooks();
+            renderBooksTable(rootElement, books);
+            removeEditor();
+        } catch (error) {
+            alert(getErrorMessage(error, 'Fehler beim Speichern.'));
+        }
+    };
+
+    await openEditor({
+        host: slot,
+        manifestPath: '/editors/books.editor.json',
+        mode,
+        dataContext: { bookId },
+        actions: {
+            confirm: handleConfirm,
+            cancel: handleCancel
+        }
+    });
+
+    const editorRoot = slot.querySelector('.book-editor');
+    if (!editorRoot) return;
+
+    editorDisposables = createDisposables();
+
+    const titleElement = editorRoot.querySelector('#bookEditorTitle');
+    if (titleElement) {
+        titleElement.textContent = mode === 'edit' ? 'Buch bearbeiten' : 'Neues Buch';
+    }
+
+    const titleInput = editorRoot.querySelector('#bookTitle');
+    const summarySection = editorRoot.querySelector('[data-book-summary]');
+    const summaryToggle = editorRoot.querySelector('[data-summary-action="toggle"]');
+    const summaryInput = editorRoot.querySelector('#bookSummary');
+    const summaryGenerateButton = editorRoot.querySelector('[data-summary-action="generate"]');
+    const summaryStatus = editorRoot.querySelector('[data-summary-status]');
+    const authorsHost = editorRoot.querySelector('[data-editor-part="book-authors"]');
+    const listsHost = editorRoot.querySelector('[data-editor-part="book-lists"]');
+    const tagsHost = editorRoot.querySelector('[data-editor-part="book-tags"]');
+
+    const fetches = [
+        getJson('/api/authors'),
+        getJson('/api/book-lists'),
+        getJson('/api/tags')
+    ];
+
+    if (bookId) {
+        fetches.push(getJson(`/api/books/${bookId}`));
+    }
+
+    const [authorsData, listsData, tagsData, bookDataResponse] = await Promise.all(fetches);
+    allAuthors = authorsData;
+    allLists = listsData.items || [];
+    allTags = tagsData;
+
+    if (bookId && bookDataResponse) {
+        bookData = bookDataResponse;
+    }
+
+    authorsById = new Map(
+        allAuthors
+            .map((author) => [getAuthorId(author), author])
+            .filter(([id]) => id !== undefined && id !== null)
+            .map(([id, author]) => [String(id), author])
+    );
+
+    listsById = new Map(
+        allLists
+            .map((list) => [getListId(list), list])
+            .filter(([id]) => id !== undefined && id !== null)
+            .map(([id, list]) => [String(id), list])
+    );
+
+    tagsById = new Map(
+        allTags
+            .map((tag) => [getTagId(tag), tag])
+            .filter(([id]) => id !== undefined && id !== null)
+            .map(([id, tag]) => [String(id), tag])
+    );
+
+    if (bookData) {
+        if (titleInput) {
+            titleInput.value = bookData.title || '';
+        }
+        if (summaryInput) {
+            summaryInput.value = bookData.summary || '';
+        }
+        assignedAuthors = Array.isArray(bookData.authors) ? bookData.authors : [];
+        if (Array.isArray(bookData.listIds)) {
+            assignedLists = allLists.filter((list) => bookData.listIds.includes(getListId(list)));
+        }
+        if (Array.isArray(bookData.tagIds)) {
+            assignedTags = allTags.filter((tag) => bookData.tagIds.includes(getTagId(tag)));
+        } else if (Array.isArray(bookData.tags)) {
+            assignedTags = bookData.tags;
+        }
+    }
+
+    const persistRelations = async (nextAuthors, nextLists) => {
+        if (!bookId) return true;
+        const title = titleInput.value.trim();
+        if (!title || title.length < 2) {
+            alert('Bitte einen gültigen Titel eingeben.');
+            return false;
+        }
+        const authorIds = nextAuthors.map(a => getAuthorId(a)).filter(id => id !== undefined && id !== null);
+        const listIds = nextLists.map(l => getListId(l)).filter(id => id !== undefined && id !== null);
+        const summary = summaryInput ? summaryInput.value.trim() : null;
+        const summaryPayload = summary ? summary : null;
+
+        if (authorIds.length === 0) {
+            alert('Ein Buch muss mindestens einen Autor haben.');
+            return false;
+        }
+        if (listIds.length === 0) {
+            alert('Bitte wählen Sie mindestens eine Liste aus.');
+            return false;
+        }
+
+        try {
+            await putJson(`/api/books/${bookId}`, {
+                title,
+                authorIds,
+                listIds,
+                summary: summaryPayload
+            });
+        } catch (error) {
+            alert(getErrorMessage(error, 'Fehler beim Aktualisieren.'));
+            return false;
+        }
+        return true;
+    };
+
+    const joinContext = {
+        bookId,
+        mode
+    };
+
+    const authorsController = createJoinChildTableController({
+        sectionLabel: 'Autoren',
+        columns: [
+            { header: 'Vorname', field: 'first_name' },
+            { header: 'Nachname', field: 'last_name' }
+        ],
+        key: getAuthorId,
+        formatOption: (author) => `${author.first_name} ${author.last_name}`,
+        texts: {
+            modalTitle: 'Autor auswählen',
+            messages: {
+                selectRequired: 'Bitte einen Autor auswählen.',
+                duplicate: 'Dieser Autor ist bereits zugewiesen.',
+                removeSelectRequired: 'Bitte einen Autor auswählen.',
+                removeConfirm: 'Autor wirklich entfernen?'
+            }
+        },
+        loadAssigned: async () => assignedAuthors,
+        loadAvailable: async () => allAuthors,
+        addRelation: async (ctx, authorKey) => {
+            const author = authorsById.get(authorKey);
             if (!author) {
                 alert('Ausgewählter Autor nicht gefunden.');
                 return;
             }
-            const alreadyAssigned = assignedAuthors.some(a => String(getAuthorId(a)) === selectedId);
-            if (!alreadyAssigned) {
-                assignedAuthors.push(author);
-                renderDialogAuthors();
-                updateRemoveBtnState();
-            } else {
-                alert('Dieser Autor ist bereits zugewiesen.');
-            }
-        });
-
-        removeAuthorBtn.addEventListener('click', () => {
-            if (selectedInDialogId !== null) {
-                removeAssignedAuthor(selectedInDialogId);
-            } else {
-                alert('Bitte einen Autor auswählen.');
-            }
-        });
-
-        cancelBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            removeEditor(rootElement);
-        });
-
-        confirmBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            const title = titleInput.value.trim();
-            if (!title || title.length < 2) return alert('Bitte einen gültigen Titel eingeben.');
-            if (assignedAuthors.length === 0) return alert('Ein Buch muss mindestens einen Autor haben.');
-
-            const checkedLists = Array.from(editorRoot.querySelectorAll('input[name="book_list"]:checked')).map(cb => parseInt(cb.value));
-            if (checkedLists.length === 0) return alert('Bitte wählen Sie mindestens eine Liste aus.');
-
-            const authorIds = assignedAuthors.map(a => a.author_id);
-            
-            // Check for duplicate
-            const checkRes = await fetch(`/api/books/check-duplicate?title=${encodeURIComponent(title)}&authorIds=${JSON.stringify(authorIds)}`);
-            const checkData = await checkRes.json();
-            
-            // If duplicate exists and it's either a new book or a different book being edited
-            if (checkData.duplicate && (!bookId || checkData.book_id !== bookId)) {
-                alert('Ein Buch mit diesem Titel und diesen Autoren existiert bereits.');
+            const nextAuthors = [...assignedAuthors, author];
+            const persisted = await persistRelations(nextAuthors, assignedLists);
+            if (!persisted) return;
+            assignedAuthors = nextAuthors;
+        },
+        removeRelation: async (ctx, authorKey) => {
+            const nextAuthors = assignedAuthors.filter(a => String(getAuthorId(a)) !== String(authorKey));
+            if (bookId && nextAuthors.length === 0) {
+                alert('Ein Buch muss mindestens einen Autor haben.');
                 return;
             }
+            const persisted = await persistRelations(nextAuthors, assignedLists);
+            if (!persisted) return;
+            assignedAuthors = nextAuthors;
+        },
+        confirmRemoveText: (author) => {
+            if (!author) return 'Autor wirklich entfernen?';
+            return `Autor ${author.first_name} ${author.last_name} wirklich entfernen?`;
+        },
+        inlinePicker: {
+            enabled: true,
+            hostKey: 'book-authors',
+            viewPath: '/views/pickers/inline-entity-picker.view.html',
+            controllerPath: '/controllers/inline-entity-picker.controller.js',
+            manager: inlinePickerManager
+        }
+    });
 
-            const method = bookId ? 'PUT' : 'POST';
-            const url = bookId ? `/api/books/${bookId}` : '/api/books';
-
-            const saveRes = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, authorIds, listIds: checkedLists })
-            });
-
-            if (saveRes.ok) {
-                const books = await fetchBooks();
-                renderBooksTable(rootElement, books);
-                removeEditor(rootElement);
-            } else {
-                const err = await saveRes.json();
-                alert(err.error || 'Fehler beim Speichern.');
+    const listsController = createJoinChildTableController({
+        sectionLabel: 'Bücherlisten',
+        columns: [
+            { header: 'Liste', field: 'name' }
+        ],
+        key: getListId,
+        formatOption: (list) => list.name,
+        texts: {
+            modalTitle: 'Liste auswählen',
+            messages: {
+                selectRequired: 'Bitte eine Liste auswählen.',
+                duplicate: 'Diese Liste ist bereits zugewiesen.',
+                removeSelectRequired: 'Bitte eine Liste auswählen.',
+                removeConfirm: 'Liste wirklich entfernen?'
             }
-        });
-    } catch (e) {
-        console.error(e);
+        },
+        loadAssigned: async () => assignedLists,
+        loadAvailable: async () => allLists,
+        addRelation: async (ctx, listKey) => {
+            const list = listsById.get(listKey);
+            if (!list) {
+                alert('Ausgewählte Liste nicht gefunden.');
+                return;
+            }
+            const nextLists = [...assignedLists, list];
+            const persisted = await persistRelations(assignedAuthors, nextLists);
+            if (!persisted) return;
+            assignedLists = nextLists;
+        },
+        removeRelation: async (ctx, listKey) => {
+            const nextLists = assignedLists.filter(l => String(getListId(l)) !== String(listKey));
+            if (bookId && nextLists.length === 0) {
+                alert('Bitte wählen Sie mindestens eine Liste aus.');
+                return;
+            }
+            const persisted = await persistRelations(assignedAuthors, nextLists);
+            if (!persisted) return;
+            assignedLists = nextLists;
+        },
+        confirmRemoveText: (list) => {
+            if (!list) return 'Liste wirklich entfernen?';
+            return `Liste "${list.name}" wirklich entfernen?`;
+        },
+        inlinePicker: {
+            enabled: true,
+            hostKey: 'book-lists',
+            viewPath: '/views/pickers/inline-entity-picker.view.html',
+            controllerPath: '/controllers/inline-entity-picker.controller.js',
+            manager: inlinePickerManager
+        }
+    });
+
+    const tagsController = createJoinChildTableController({
+        sectionLabel: 'Tags',
+        columns: [
+            { header: 'Tag', field: 'name' }
+        ],
+        key: getTagId,
+        formatOption: (tag) => tag.name,
+        texts: {
+            modalTitle: 'Tag auswählen',
+            messages: {
+                selectRequired: 'Bitte ein Tag auswählen.',
+                duplicate: 'Dieses Tag ist bereits zugewiesen.',
+                removeSelectRequired: 'Bitte ein Tag auswählen.',
+                removeConfirm: 'Tag wirklich entfernen?'
+            }
+        },
+        loadAssigned: async () => assignedTags,
+        loadAvailable: async () => allTags,
+        addRelation: async (ctx, tagKey) => {
+            const tag = tagsById.get(tagKey);
+            if (!tag) {
+                alert('Ausgewähltes Tag nicht gefunden.');
+                return;
+            }
+            const nextTags = [...assignedTags, tag];
+            assignedTags = nextTags;
+        },
+        removeRelation: async (ctx, tagKey) => {
+            const nextTags = assignedTags.filter(t => String(getTagId(t)) !== String(tagKey));
+            assignedTags = nextTags;
+        },
+        confirmRemoveText: (tag) => {
+            if (!tag) return 'Tag wirklich entfernen?';
+            return `Tag "${tag.name}" wirklich entfernen?`;
+        },
+        inlinePicker: {
+            enabled: true,
+            hostKey: 'tags',
+            viewPath: '/views/pickers/inline-entity-picker.view.html',
+            controllerPath: '/controllers/inline-entity-picker.controller.js',
+            manager: inlinePickerManager
+        }
+    });
+
+    if (authorsHost) {
+        await authorsController.mount(authorsHost, joinContext);
+        editorDisposables.add(() => authorsController.dispose());
     }
+    if (listsHost) {
+        await listsController.mount(listsHost, joinContext);
+        editorDisposables.add(() => listsController.dispose());
+    }
+    if (tagsHost) {
+        await tagsController.mount(tagsHost, joinContext);
+        editorDisposables.add(() => tagsController.dispose());
+    }
+    if (summarySection && summaryInput && summaryToggle) {
+        const setSummaryExpanded = (expanded) => {
+            summarySection.classList.toggle('is-collapsed', !expanded);
+            summaryToggle.textContent = expanded ? 'Einklappen' : 'Ausklappen';
+            summaryInput.rows = expanded ? 10 : 4;
+        };
+
+        setSummaryExpanded(false);
+
+        editorDisposables.add(addEvent(summaryToggle, 'click', () => {
+            const isCollapsed = summarySection.classList.contains('is-collapsed');
+            setSummaryExpanded(isCollapsed);
+        }));
+    }
+
+    if (summaryGenerateButton) {
+        if (!bookId) {
+            summaryGenerateButton.disabled = true;
+        } else {
+            editorDisposables.add(addEvent(summaryGenerateButton, 'click', async () => {
+                summaryGenerateButton.disabled = true;
+                if (summaryStatus) {
+                    summaryStatus.textContent = 'Zusammenfassung wird erstellt...';
+                }
+                try {
+                    const result = await postJson(`/api/books/${bookId}/summary`);
+                    if (summaryInput) {
+                        summaryInput.value = result?.summary || '';
+                    }
+                    if (summarySection && summaryToggle && summaryInput) {
+                        summarySection.classList.remove('is-collapsed');
+                        summaryToggle.textContent = 'Einklappen';
+                        summaryInput.rows = 10;
+                    }
+                    if (summaryStatus) {
+                        summaryStatus.textContent = 'Zusammenfassung aktualisiert.';
+                    }
+                } catch (error) {
+                    alert(getErrorMessage(error, 'Fehler beim Erstellen der Zusammenfassung.'));
+                    if (summaryStatus) {
+                        summaryStatus.textContent = '';
+                    }
+                } finally {
+                    summaryGenerateButton.disabled = false;
+                }
+            }));
+        }
+    }
+
+    editorDisposables.add(() => inlinePickerManager.closeActive());
 }
 
-async function setEditorMode(rootElement, mode) {
+async function setEditorMode(mode) {
     if (mode === 'edit') {
         if (!selectedBookId) {
             alert('Bitte ein Buch auswählen.');
             return;
         }
-        await renderBookEditor(rootElement, 'edit', selectedBookId);
+        await renderBookEditor('edit', selectedBookId);
     } else {
-        await renderBookEditor(rootElement, 'create');
+        await renderBookEditor('create');
     }
 }
 
 function handleBookActions(event) {
     const actionButton = event.target.closest('[data-book-action]');
     if (!actionButton) return;
-    const rootElement = event.currentTarget;
-    if (actionButton.dataset.bookAction === 'create') {
-        setEditorMode(rootElement, 'create');
-    }
-    if (actionButton.dataset.bookAction === 'edit') {
-        setEditorMode(rootElement, 'edit');
-    }
-    if (actionButton.dataset.bookAction === 'delete') {
-        deleteSelectedBook(rootElement);
+    const action = actionButton.dataset.bookAction;
+    switch (action) {
+        case 'create':
+            setEditorMode('create');
+            break;
+        case 'edit':
+            setEditorMode('edit');
+            break;
+        case 'delete':
+            deleteSelectedBook();
+            break;
+        default:
+            break;
     }
 }
 
-// Bound events:
-// - click on root (delegation)
-// - change on select#booklistFilter
+function handleBookRowDoubleClick(event) {
+    if (event.target.closest('button, a, [data-book-action]')) return;
+    const tbody = rootElement?.querySelector('tbody');
+    const row = event.target.closest('tr[data-id]');
+    if (!tbody || !row || !tbody.contains(row)) return;
+    selectedBookId = Number(row.dataset.id);
+    setEditorMode('edit');
+}

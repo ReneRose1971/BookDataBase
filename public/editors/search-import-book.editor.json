@@ -1,0 +1,17 @@
+{
+  "shell": "/views/editors/shells/search-import-book.shell.html",
+  "slots": {
+    "main": [
+      {
+        "name": "search-import-book-fields",
+        "html": "/views/editors/parts/search-import-book-fields.part.html"
+      }
+    ],
+    "footer": [
+      {
+        "name": "search-import-actions",
+        "html": "/views/editors/parts/search-import-actions.part.html"
+      }
+    ]
+  }
+}
