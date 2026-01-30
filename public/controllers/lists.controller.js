@@ -2,6 +2,7 @@ import { enableSingleRowSelection } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
 import { getJson, postJson, putJson, deleteJson, getErrorMessage } from '../api/api-client.js';
+import { notify, notifySelectionRequired, notifyNotFound } from '../services/notify.service.js';
 
 let selectedListId = null;
 let cachedLists = [];
@@ -70,16 +71,16 @@ function renderListsTable(rootElement, lists) {
 async function setEditorMode(mode) {
     if (mode === 'edit') {
         if (!selectedListId) {
-            alert('Keine Liste ausgewählt.');
+            notifySelectionRequired('Keine Liste ausgewählt.');
             return;
         }
         const selectedList = cachedLists.find((list) => Number(list.book_list_id) === selectedListId);
         if (!selectedList) {
-            alert('Ausgewählte Liste nicht gefunden.');
+            notifyNotFound('Ausgewählte Liste nicht gefunden.');
             return;
         }
         if (selectedList.is_standard) {
-            alert('Standardlisten dürfen nicht bearbeitet werden.');
+            notify('Standardlisten dürfen nicht bearbeitet werden.');
             return;
         }
         editorMode = mode;
@@ -129,7 +130,7 @@ async function renderEditor(value) {
 
 async function deleteSelectedList() {
     if (!selectedListId) {
-        alert('Keine Liste ausgewählt.');
+        notifySelectionRequired('Keine Liste ausgewählt.');
         return;
     }
 
@@ -141,12 +142,12 @@ async function deleteSelectedList() {
         const list = await getJson(`/api/book-lists/${selectedListId}`);
 
         if (Number(list.item.book_list_id) !== selectedListId) {
-            alert('Ausgewählte Liste nicht gefunden.');
+            notifyNotFound('Ausgewählte Liste nicht gefunden.');
             return;
         }
 
         if (list.item.is_standard) {
-            alert('Standardlisten können nicht gelöscht werden.');
+            notify('Standardlisten können nicht gelöscht werden.');
             return;
         }
 
@@ -154,7 +155,7 @@ async function deleteSelectedList() {
             await deleteJson(`/api/book-lists/${selectedListId}`);
         } catch (error) {
             if (error.status === 409) {
-                alert(getErrorMessage(error));
+                notify(getErrorMessage(error));
                 return;
             }
             throw error;
@@ -175,23 +176,23 @@ async function handleConfirm(event) {
     if (!input) return;
     const name = input.value.trim();
     if (!name) {
-        alert('Name ist erforderlich.');
+        notify('Name ist erforderlich.');
         return;
     }
 
     if (editorMode === 'edit') {
         if (!selectedListId) {
-            alert('Keine Liste ausgewählt.');
+            notifySelectionRequired('Keine Liste ausgewählt.');
             return;
         }
         if (isDuplicateName(name, selectedListId)) {
-            alert('Eine Liste mit diesem Namen existiert bereits.');
+            notify('Eine Liste mit diesem Namen existiert bereits.');
             return;
         }
         await updateList(name);
     } else {
         if (isDuplicateName(name)) {
-            alert('Eine Liste mit diesem Namen existiert bereits.');
+            notify('Eine Liste mit diesem Namen existiert bereits.');
             return;
         }
         await createList(name);
@@ -211,7 +212,7 @@ async function createList(name) {
         renderListsTable(rootElement, cachedLists);
         removeEditor();
     } catch (error) {
-        alert(getErrorMessage(error, 'Failed to create list'));
+        notify(getErrorMessage(error, 'Failed to create list'));
         console.error('Error creating list:', error);
     }
 }
@@ -224,7 +225,7 @@ async function updateList(name) {
         renderListsTable(rootElement, cachedLists);
         removeEditor();
     } catch (error) {
-        alert(getErrorMessage(error, 'Failed to update list'));
+        notify(getErrorMessage(error, 'Failed to update list'));
         console.error('Error updating list:', error);
     }
 }

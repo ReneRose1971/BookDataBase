@@ -2,7 +2,10 @@ import { enableSingleRowSelection } from '../ui-helpers.js';
 import { openEditor, closeEditor } from '../editor-runtime/editor-composer.js';
 import { createDisposables, addEvent } from '../editor-runtime/disposables.js';
 import { createJoinChildTableController } from '../editor-runtime/join-child-table.js';
-import { getJson, postJson, putJson, deleteJson, getErrorMessage, getErrorPayload } from '../api/api-client.js';
+import { getErrorMessage, getErrorPayload } from '../api/api-client.js';
+import { fetchBooks, fetchBookLists, fetchAuthors, fetchTags, fetchBook, checkDuplicateBook, createBook, updateBook, deleteBook, generateBookSummary } from '../services/books-api.service.js';
+import { BOOK_VALIDATION_MESSAGES, validateTitle, validateAuthors, validateLists } from '../services/books-validation.js';
+import { notify, notifySelectionRequired, notifyNotFound } from '../services/notify.service.js';
 
 let selectedBookId = null;
 let editorMode = 'create';
@@ -17,7 +20,7 @@ export async function mount(ctx) {
 
     const filterSelect = rootElement.querySelector('#booklistFilter');
 
-    cachedLists = await fetchLists();
+    cachedLists = await fetchBookLists();
 
     if (filterSelect) {
         filterSelect.innerHTML = cachedLists.map(l => `<option value="${l.book_list_id}" ${l.name === 'Gelesene Bücher' ? 'selected' : ''}>${l.name}</option>`).join('');
@@ -52,27 +55,6 @@ export function unmount() {
     selectedBookId = null;
 }
 
-async function fetchBooks(listId = null) {
-    try {
-        const url = listId ? `/api/books?listId=${listId}` : '/api/books';
-        const data = await getJson(url);
-        return data.items || [];
-    } catch (e) {
-        console.error(e);
-        return [];
-    }
-}
-
-async function fetchLists() {
-    try {
-        const listsData = await getJson('/api/book-lists');
-        return listsData.items || [];
-    } catch (e) {
-        console.error(e);
-        return [];
-    }
-}
-
 function renderBooksTable(rootElement, books) {
     const tbody = rootElement.querySelector('tbody');
     if (!tbody) return;
@@ -86,11 +68,14 @@ function renderBooksTable(rootElement, books) {
 }
 
 async function deleteSelectedBook() {
-    if (!selectedBookId) return alert('Bitte ein Buch auswählen.');
+    if (!selectedBookId) {
+        notifySelectionRequired(BOOK_VALIDATION_MESSAGES.selectBookRequired);
+        return;
+    }
     if (!confirm('Buch wirklich löschen?')) return;
 
     try {
-        await deleteJson(`/api/books/${selectedBookId}`);
+        await deleteBook(selectedBookId);
         selectedBookId = null;
         const books = await fetchBooks();
         renderBooksTable(rootElement, books);
@@ -100,7 +85,7 @@ async function deleteSelectedBook() {
         const errorText = payload === undefined || payload === null
             ? getErrorMessage(e)
             : (typeof payload === 'string' ? payload : JSON.stringify(payload));
-        alert(`Fehler beim Löschen (${e.status ?? 'unbekannt'}): ${errorText}`);
+        notify(`Fehler beim Löschen (${e.status ?? 'unbekannt'}): ${errorText}`);
         console.error(e);
     }
 }
@@ -172,9 +157,21 @@ async function renderBookEditor(mode, bookId = null) {
     const handleConfirm = async (event) => {
         event.preventDefault();
         const title = titleInput.value.trim();
-        if (!title || title.length < 2) return alert('Bitte einen gültigen Titel eingeben.');
-        if (assignedAuthors.length === 0) return alert('Ein Buch muss mindestens einen Autor haben.');
-        if (assignedLists.length === 0) return alert('Bitte wählen Sie mindestens eine Liste aus.');
+        const titleError = validateTitle(title);
+        if (titleError) {
+            notify(titleError);
+            return;
+        }
+        const authorsError = validateAuthors(assignedAuthors);
+        if (authorsError) {
+            notify(authorsError);
+            return;
+        }
+        const listsError = validateLists(assignedLists);
+        if (listsError) {
+            notify(listsError);
+            return;
+        }
 
         const authorIds = assignedAuthors.map(a => getAuthorId(a));
         const listIds = assignedLists.map(l => getListId(l));
@@ -182,33 +179,24 @@ async function renderBookEditor(mode, bookId = null) {
         const summary = summaryInput ? summaryInput.value.trim() : null;
         const summaryPayload = summary ? summary : null;
 
-        let checkData = null;
-        try {
-            checkData = await getJson(`/api/books/check-duplicate?title=${encodeURIComponent(title)}&authorIds=${JSON.stringify(authorIds)}`);
-        } catch (error) {
-            console.error(error);
-            checkData = { duplicate: false };
-        }
+        const checkData = await checkDuplicateBook(title, authorIds);
 
         if (checkData.duplicate && (!bookId || checkData.book_id !== bookId)) {
-            alert('Ein Buch mit diesem Titel und diesen Autoren existiert bereits.');
+            notify(BOOK_VALIDATION_MESSAGES.duplicate);
             return;
         }
 
-        const method = bookId ? 'PUT' : 'POST';
-        const url = bookId ? `/api/books/${bookId}` : '/api/books';
-
         try {
-            if (method === 'PUT') {
-                await putJson(url, { title, authorIds, listIds, tagIds, summary: summaryPayload });
+            if (bookId) {
+                await updateBook(bookId, { title, authorIds, listIds, tagIds, summary: summaryPayload });
             } else {
-                await postJson(url, { title, authorIds, listIds, tagIds, summary: summaryPayload });
+                await createBook({ title, authorIds, listIds, tagIds, summary: summaryPayload });
             }
             const books = await fetchBooks();
             renderBooksTable(rootElement, books);
             removeEditor();
         } catch (error) {
-            alert(getErrorMessage(error, 'Fehler beim Speichern.'));
+            notify(getErrorMessage(error, 'Fehler beim Speichern.'));
         }
     };
 
@@ -244,13 +232,13 @@ async function renderBookEditor(mode, bookId = null) {
     const tagsHost = editorRoot.querySelector('[data-editor-part="book-tags"]');
 
     const fetches = [
-        getJson('/api/authors'),
-        getJson('/api/book-lists'),
-        getJson('/api/tags')
+        fetchAuthors(),
+        fetchBookLists(),
+        fetchTags()
     ];
 
     if (bookId) {
-        fetches.push(getJson(`/api/books/${bookId}`));
+        fetches.push(fetchBook(bookId));
     }
 
     const [authorsData, listsData, tagsData, bookDataResponse] = await Promise.all(fetches);
@@ -304,8 +292,9 @@ async function renderBookEditor(mode, bookId = null) {
     const persistRelations = async (nextAuthors, nextLists) => {
         if (!bookId) return true;
         const title = titleInput.value.trim();
-        if (!title || title.length < 2) {
-            alert('Bitte einen gültigen Titel eingeben.');
+        const titleError = validateTitle(title);
+        if (titleError) {
+            notify(titleError);
             return false;
         }
         const authorIds = nextAuthors.map(a => getAuthorId(a)).filter(id => id !== undefined && id !== null);
@@ -313,24 +302,26 @@ async function renderBookEditor(mode, bookId = null) {
         const summary = summaryInput ? summaryInput.value.trim() : null;
         const summaryPayload = summary ? summary : null;
 
-        if (authorIds.length === 0) {
-            alert('Ein Buch muss mindestens einen Autor haben.');
+        const authorsError = validateAuthors(nextAuthors);
+        if (authorsError) {
+            notify(authorsError);
             return false;
         }
-        if (listIds.length === 0) {
-            alert('Bitte wählen Sie mindestens eine Liste aus.');
+        const listsError = validateLists(nextLists);
+        if (listsError) {
+            notify(listsError);
             return false;
         }
 
         try {
-            await putJson(`/api/books/${bookId}`, {
+            await updateBook(bookId, {
                 title,
                 authorIds,
                 listIds,
                 summary: summaryPayload
             });
         } catch (error) {
-            alert(getErrorMessage(error, 'Fehler beim Aktualisieren.'));
+            notify(getErrorMessage(error, 'Fehler beim Aktualisieren.'));
             return false;
         }
         return true;
@@ -363,7 +354,7 @@ async function renderBookEditor(mode, bookId = null) {
         addRelation: async (ctx, authorKey) => {
             const author = authorsById.get(authorKey);
             if (!author) {
-                alert('Ausgewählter Autor nicht gefunden.');
+                notifyNotFound(BOOK_VALIDATION_MESSAGES.authorNotFound);
                 return;
             }
             const nextAuthors = [...assignedAuthors, author];
@@ -374,7 +365,7 @@ async function renderBookEditor(mode, bookId = null) {
         removeRelation: async (ctx, authorKey) => {
             const nextAuthors = assignedAuthors.filter(a => String(getAuthorId(a)) !== String(authorKey));
             if (bookId && nextAuthors.length === 0) {
-                alert('Ein Buch muss mindestens einen Autor haben.');
+                notify(BOOK_VALIDATION_MESSAGES.authorsRequired);
                 return;
             }
             const persisted = await persistRelations(nextAuthors, assignedLists);
@@ -415,7 +406,7 @@ async function renderBookEditor(mode, bookId = null) {
         addRelation: async (ctx, listKey) => {
             const list = listsById.get(listKey);
             if (!list) {
-                alert('Ausgewählte Liste nicht gefunden.');
+                notifyNotFound(BOOK_VALIDATION_MESSAGES.listNotFound);
                 return;
             }
             const nextLists = [...assignedLists, list];
@@ -426,7 +417,7 @@ async function renderBookEditor(mode, bookId = null) {
         removeRelation: async (ctx, listKey) => {
             const nextLists = assignedLists.filter(l => String(getListId(l)) !== String(listKey));
             if (bookId && nextLists.length === 0) {
-                alert('Bitte wählen Sie mindestens eine Liste aus.');
+                notify(BOOK_VALIDATION_MESSAGES.listsRequired);
                 return;
             }
             const persisted = await persistRelations(assignedAuthors, nextLists);
@@ -467,7 +458,7 @@ async function renderBookEditor(mode, bookId = null) {
         addRelation: async (ctx, tagKey) => {
             const tag = tagsById.get(tagKey);
             if (!tag) {
-                alert('Ausgewähltes Tag nicht gefunden.');
+                notifyNotFound(BOOK_VALIDATION_MESSAGES.tagNotFound);
                 return;
             }
             const nextTags = [...assignedTags, tag];
@@ -527,7 +518,7 @@ async function renderBookEditor(mode, bookId = null) {
                     summaryStatus.textContent = 'Zusammenfassung wird erstellt...';
                 }
                 try {
-                    const result = await postJson(`/api/books/${bookId}/summary`);
+                    const result = await generateBookSummary(bookId);
                     if (summaryInput) {
                         summaryInput.value = result?.summary || '';
                     }
@@ -540,7 +531,7 @@ async function renderBookEditor(mode, bookId = null) {
                         summaryStatus.textContent = 'Zusammenfassung aktualisiert.';
                     }
                 } catch (error) {
-                    alert(getErrorMessage(error, 'Fehler beim Erstellen der Zusammenfassung.'));
+                    notify(getErrorMessage(error, 'Fehler beim Erstellen der Zusammenfassung.'));
                     if (summaryStatus) {
                         summaryStatus.textContent = '';
                     }
@@ -557,7 +548,7 @@ async function renderBookEditor(mode, bookId = null) {
 async function setEditorMode(mode) {
     if (mode === 'edit') {
         if (!selectedBookId) {
-            alert('Bitte ein Buch auswählen.');
+            notifySelectionRequired(BOOK_VALIDATION_MESSAGES.selectBookRequired);
             return;
         }
         await renderBookEditor('edit', selectedBookId);
