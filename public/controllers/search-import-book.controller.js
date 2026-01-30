@@ -112,17 +112,28 @@ async function handleConfirm(event) {
         const [firstName, lastName] = name.split(',').map(part => part.trim());
         return { firstName, lastName, fullName: `${firstName} ${lastName}`.trim() };
     });
+    const title = formData.get('title')?.trim();
+    const isbn = formData.get('isbn')?.trim();
+    const listIds = formData.getAll('listIds[]').filter(Boolean);
+    const bookPayload = { title, authors, isbn };
 
     try {
-        await importBook({
+        const payload = {
             itemId: item?.itemId,
             searchId,
             sessionId,
-            title: formData.get('title')?.trim(),
+            title,
             authors,
-            isbn: formData.get('isbn')?.trim(),
+            isbn,
             confirm: true
-        });
+        };
+        if (listIds.length > 0) {
+            payload.listIds = listIds;
+        }
+        if (item?.source === 'cover_scan') {
+            payload.book = bookPayload;
+        }
+        await importBook(payload);
         closeEditor();
         clearEditorDisposables();
         if (setStatus) {

@@ -33,3 +33,25 @@
 - Endpunkte: `/api/cover-scan/config`, `/api/cover-scan/extract`, `/api/cover-scan/import`.
 - Import-Flow: bestehende Buch-Anlage inkl. Duplikatprüfung, Listenpflicht, Autoren-Auflösung.
 - PDF-Referenz: `FT (08) Cover Scan und Extract.pdf`.
+
+## 2025-02-14T16:30:00+00:00
+
+### FT(08) – Cover-Scan Ergebnisse wie externe Suche
+
+#### Änderungen / Dateien
+- Neu: `public/controllers/search-results-table.js` (Shared Tabelle/Sortierung/Filter/Paging für Suche & Cover-Scan)
+- Neu: `public/controllers/search-import-modal.js` (Shared Modal-Manager für Import-Editoren)
+- Update: `public/controllers/search.controller.js` (Nutzt Shared Tabelle/Modal statt eigener Renderer)
+- Update: `public/controllers/cover-scan.controller.js` (Cover-Scan → SearchResult-Mapping, nutzt Shared Tabelle/Editoren)
+- Update: `public/views/cover-scan.view.html` (Ergebnisbereich auf Such-Tabellenlayout umgestellt)
+- Update: `public/controllers/search-import-book.controller.js` (Cover-Scan Book-Payload durchreichen)
+
+#### Wiederverwendete Komponenten
+- Tabellen-Renderer/Filter/Paging/Sortierung der externen Suche über `search-results-table`.
+- Bestehende Import-Editoren `search-import-book` und `search-import-author` via Shared Modal-Manager.
+
+#### Mapping CoverScanResult → SearchResult
+- Quelle fix `cover_scan`, damit Label „Cover Scan“ in der Tabelle.
+- `title` → `title`, `isbn` → `isbn`.
+- `authors[]` (Strings) → `authors[]` mit `{ firstName, lastName, fullName }` via einfache Namensheuristik.
+- `itemId` aus `fileIndex` + `fileName` erzeugt, um Import-Aktionen pro Zeile zu ermöglichen.
