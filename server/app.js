@@ -12,6 +12,7 @@ import bookListsRoutes from "./routes/book-lists.routes.js";
 import authorsRoutes from "./routes/authors.routes.js";
 import booksRoutes from "./routes/books.routes.js";
 import searchRoutes from "./routes/search.routes.js";
+import coverScanRoutes from "./routes/cover-scan.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,6 +65,7 @@ app.use(bookListsRoutes);
 app.use(authorsRoutes);
 app.use(booksRoutes);
 app.use(searchRoutes);
+app.use(coverScanRoutes);
 app.use(errorHandler);
 
 console.log("SERVER.JS LOADED:", fileURLToPath(import.meta.url));

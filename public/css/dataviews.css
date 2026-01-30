@@ -214,3 +214,82 @@ tr.selected {
     flex-wrap: wrap;
     gap: 0.5rem;
 }
+
+.view-wrapper-cover-scan .cover-scan-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: #f8fafc;
+    padding: 1.25rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.view-wrapper-cover-scan .cover-scan-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.view-wrapper-cover-scan .cover-scan-hint {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.view-wrapper-cover-scan .cover-scan-status {
+    min-height: 1.5rem;
+    font-size: 0.9rem;
+    color: #334155;
+}
+
+.view-wrapper-cover-scan .cover-scan-log {
+    background-color: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    color: #1f2937;
+    font-size: 0.85rem;
+    white-space: pre-line;
+}
+
+.view-wrapper-cover-scan .cover-scan-status.is-error {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.view-wrapper-cover-scan .cover-scan-results h3 {
+    margin: 0 0 0.75rem;
+    color: var(--color-dark);
+}
+
+.view-wrapper-cover-scan .cover-scan-results-summary {
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 0.75rem;
+}
+
+.view-wrapper-cover-scan .cover-scan-thumb {
+    width: 48px;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+    margin-bottom: 0.35rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.view-wrapper-cover-scan .cover-scan-filename {
+    font-size: 0.85rem;
+    color: #475569;
+    word-break: break-word;
+}
+
+.view-wrapper-cover-scan .cover-scan-lists {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.view-wrapper-cover-scan .cover-scan-status-cell {
+    font-weight: 600;
+    color: #1f2937;
+}
