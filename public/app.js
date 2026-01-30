@@ -6,7 +6,8 @@ const routes = {
     lists: { controller: './controllers/lists.controller.js', title: 'Listen' },
     tags: { controller: './controllers/tags.controller.js', title: 'Tags' },
     userConfig: { controller: './controllers/userConfig.controller.js', title: 'Konfiguration' },
-    search: { controller: './controllers/search.controller.js', title: 'Büchersuche' }
+    search: { controller: './controllers/search.controller.js', title: 'Büchersuche' },
+    'cover-scan': { controller: './controllers/cover-scan.controller.js', title: 'Cover Scan' }
 };
 
 document.querySelectorAll('.nav-button[data-view]').forEach(button => {

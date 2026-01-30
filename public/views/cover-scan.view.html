@@ -1,0 +1,41 @@
+<div class="view-wrapper view-wrapper-cover-scan">
+    <div class="section-label section-label-headline"> </div>
+    <div class="view-content-container">
+        <section class="cover-scan-form">
+            <label for="coverScanFiles">Cover-Dateien</label>
+            <input type="file" id="coverScanFiles" name="files" accept="image/jpeg,image/png,image/webp" multiple>
+            <div class="cover-scan-hint" data-cover-scan-hint></div>
+            <div class="cover-scan-actions">
+                <button class="func-button" data-cover-scan-action="scan">Scannen</button>
+            </div>
+        </section>
+
+        <section class="cover-scan-status" data-cover-scan-status></section>
+        <section class="cover-scan-status cover-scan-log" data-cover-scan-log></section>
+
+        <section class="cover-scan-results">
+            <h3>Ergebnisse</h3>
+            <div class="cover-scan-results-summary" data-cover-scan-results-summary>Ergebnisse: 0</div>
+            <div class="cover-scan-results-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Datei</th>
+                            <th>Titel</th>
+                            <th>Autor(en)</th>
+                            <th>ISBN</th>
+                            <th>Listen</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody data-cover-scan-results-body>
+                        <tr>
+                            <td colspan="7">Noch keine Scan-Ergebnisse.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
