@@ -141,7 +141,7 @@ function buildResults(responseResults, files) {
         return {
             itemId: `cover-scan-${fileIndex}-${fileName}`,
             source: 'cover_scan',
-            title: match?.title || '',
+            title: decodeHtmlEntities(match?.title || ''),
             authors: authors.map(parseAuthorName).filter(Boolean),
             isbn: match?.isbn || '',
             fileIndex,
@@ -151,14 +151,34 @@ function buildResults(responseResults, files) {
 }
 
 function parseAuthorName(value) {
-    const name = String(value || '').trim();
+    if (!value) return null;
+    if (typeof value === 'object') {
+        const firstName = String(value.firstName || '').trim();
+        const lastName = String(value.lastName || '').trim();
+        const fullName = String(value.fullName || '').trim();
+        if (firstName || lastName) {
+            return {
+                firstName,
+                lastName,
+                fullName: fullName || [firstName, lastName].filter(Boolean).join(' ').trim()
+            };
+        }
+        if (fullName) {
+            return parseAuthorName(fullName);
+        }
+        return null;
+    }
+    const name = String(value).trim();
     if (!name) return null;
     if (name.includes(',')) {
-        const [lastName, firstName] = name.split(',').map((part) => part.trim()).filter(Boolean);
-        if (!firstName || !lastName) {
-            return { firstName: firstName || '', lastName: lastName || '', fullName: name };
-        }
-        return { firstName, lastName, fullName: `${firstName} ${lastName}`.trim() };
+        const parts = name.split(',');
+        const lastName = parts.shift()?.trim() || '';
+        const firstName = parts.join(',').trim();
+        return {
+            firstName,
+            lastName,
+            fullName: [firstName, lastName].filter(Boolean).join(' ').trim() || name.replace(/,+/g, '').trim()
+        };
     }
     const parts = name.split(/\s+/).filter(Boolean);
     if (parts.length === 1) {
@@ -167,6 +187,12 @@ function parseAuthorName(value) {
     const lastName = parts.pop();
     const firstName = parts.join(' ');
     return { firstName, lastName, fullName: `${firstName} ${lastName}`.trim() };
+}
+
+function decodeHtmlEntities(value) {
+    if (!value) return '';
+    const doc = new DOMParser().parseFromString(String(value), 'text/html');
+    return doc.documentElement.textContent || '';
 }
 
 function updateResultsTable() {
