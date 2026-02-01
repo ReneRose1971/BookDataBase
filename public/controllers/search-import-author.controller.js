@@ -45,10 +45,8 @@ export async function mount(ctx) {
     const applyAuthor = (index) => {
         const author = item.authors[index] || item.authors[0];
         if (!author || !firstNameInput || !lastNameInput) return;
-        if (author.firstName && author.lastName) {
-            firstNameInput.value = author.firstName;
-            lastNameInput.value = author.lastName;
-        }
+        firstNameInput.value = String(author.firstName || '').trim();
+        lastNameInput.value = String(author.lastName || '').trim();
     };
 
     if (select) {

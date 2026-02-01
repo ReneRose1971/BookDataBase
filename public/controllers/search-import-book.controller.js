@@ -42,7 +42,8 @@ export async function mount(ctx) {
     const authorSelect = editorRoot.querySelector('#searchImportBookAuthorSelect');
 
     if (titleInput) {
-        titleInput.value = item?.title || '';
+        const rawTitle = item?.title || '';
+        titleInput.value = item?.source === 'cover_scan' ? decodeHtmlEntities(rawTitle) : rawTitle;
     }
     if (isbnInput) {
         isbnInput.value = item?.isbn || '';
@@ -59,28 +60,28 @@ export async function mount(ctx) {
             const index = parseInt(event.target.value, 10);
             if (!isNaN(index)) {
                 const author = item.authors[index] || item.authors[0];
-                if (author && author.firstName && author.lastName) {
+                if (author) {
                     const firstNameInput = editorRoot.querySelector('#searchImportBookAuthorFirstName');
                     const lastNameInput = editorRoot.querySelector('#searchImportBookAuthorLastName');
                     if (firstNameInput) {
-                        firstNameInput.value = author.firstName;
+                        firstNameInput.value = String(author.firstName || '').trim();
                     }
                     if (lastNameInput) {
-                        lastNameInput.value = author.lastName;
+                        lastNameInput.value = String(author.lastName || '').trim();
                     }
                 }
             }
         }));
 
         const firstAuthor = item.authors[0];
-        if (firstAuthor && firstAuthor.firstName && firstAuthor.lastName) {
+        if (firstAuthor) {
             const firstNameInput = editorRoot.querySelector('#searchImportBookAuthorFirstName');
             const lastNameInput = editorRoot.querySelector('#searchImportBookAuthorLastName');
             if (firstNameInput) {
-                firstNameInput.value = firstAuthor.firstName;
+                firstNameInput.value = String(firstAuthor.firstName || '').trim();
             }
             if (lastNameInput) {
-                lastNameInput.value = firstAuthor.lastName;
+                lastNameInput.value = String(firstAuthor.lastName || '').trim();
             }
         }
     }
@@ -178,4 +179,10 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/\"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function decodeHtmlEntities(value) {
+    if (!value) return '';
+    const doc = new DOMParser().parseFromString(String(value), 'text/html');
+    return doc.documentElement.textContent || '';
 }
